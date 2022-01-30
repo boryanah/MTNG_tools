@@ -4,8 +4,9 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import Corrfunc
+from astropy.cosmology import FlatLambdaCDM
 
-from tools.halostats import get_jack_corr
+from utils import get_jack_xi_l0l2, get_xi_l0l2
 import plotparams
 plotparams.buba()
 
@@ -16,8 +17,8 @@ greysafecols = ['#809BC8', '#FF6666', '#FFCC66', '#64C204']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
-fp_dm = 'fp'; snapshot = 179; snapshot_fp = 179;
-#fp_dm = 'dm'; snapshot = 184; snapshot_fp = 179;
+fp_dm = 'fp'; snapshot = 179; snapshot_fp = 179; redshift = 1.
+#fp_dm = 'dm'; snapshot = 184; snapshot_fp = 179; redshift = 1.
 Lbox = 500. # Mpc/h
 #gal_type = 'ELG'
 #gal_type = 'LRG'
@@ -32,10 +33,16 @@ fit_type = sys.argv[2]
 #fun_types = ['tanh', 'erf', 'gd', 'abs', 'arctan', 'linear']
 #fun_types = ['erf', 'linear'] # for mode all, I currently have only these two
 #fun_types = []
-fun_types = ['linear'] # TESTING
+fun_types = ['linear']
 fun_type_sats = 'linear'
 #mode = 'bins' # fitting in bins
 mode = 'all' # fitting once for all
+
+# set up cosmology
+h = 0.6774
+cosmo = FlatLambdaCDM(H0=h*100, Om0=0.3089, Tcmb0=2.725)
+H_z = cosmo.H(redshift).value
+print("H(z) = ", H_z)
 
 params = ['GroupVirial', 'GroupConcRad', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']
 n_combos = len(params)*(len(params)-1)//2
@@ -70,8 +77,11 @@ tertiaries = ['GroupConc']
 
 # load other halo properties
 SubhaloPos = np.load(tng_dir+f'data_fp/SubhaloPos_fp_{snapshot_fp:d}.npy')
+SubhaloVel = np.load(tng_dir+f'data_fp/SubhaloVel_fp_{snapshot_fp:d}.npy')
 SubhaloGrNr = np.load(tng_dir+f'data_fp/SubhaloGroupNr_fp_{snapshot_fp:d}.npy')
 GroupPos = np.load(tng_dir+f'data_fp/GroupPos_fp_{snapshot_fp:d}.npy')
+GroupVel = np.load(tng_dir+f'data_fp/GroupVel_fp_{snapshot_fp:d}.npy')
+GroupVelDisp = np.load(tng_dir+f'data_fp/GroupVelDisp_fp_{snapshot_fp:d}.npy')
 GroupCount = np.load(tng_dir+f"data_fp/GroupCount{gal_type:s}_{n_gal:s}_fp_{snapshot_fp:d}.npy")
 GroupCountCent = np.load(tng_dir+f"data_fp/GroupCentsCount{gal_type:s}_{n_gal:s}_fp_{snapshot_fp:d}.npy")
 GroupCountSats = GroupCount-GroupCountCent
@@ -94,7 +104,10 @@ rbins = np.logspace(-1, 1.5, 31)
 #rbins = np.logspace(-2, np.log10(20.), 31)
 drbin = rbins[1:] - rbins[:-1]
 rbinc = (rbins[1:]+rbins[:-1])/2.
+# Specify the distance to integrate along line of sight
+#pimax = 30.
 np.save(f"{gal_type:s}/rbinc.npy", rbinc)
+
 
 for i in range(len(fun_types)):
     fun_type = fun_types[i]
@@ -114,24 +127,33 @@ for i in range(len(fun_types)):
             if mode == 'bins':
                 pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(f"{gal_type:s}/vel_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(f"{gal_type:s}/vel_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
             elif mode == 'all':
                 pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(f"{gal_type:s}/vel_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(f"{gal_type:s}/vel_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
         else:
             if mode == 'bins':            
                 pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(f"{gal_type:s}/vel_pred_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(f"{gal_type:s}/vel_pred_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
             elif mode == 'all':
                 pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(f"{gal_type:s}/vel_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(f"{gal_type:s}/vel_pred_all_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
                 ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
 
 
         #pos_cent_pred = GroupPos[ind_cent_pred]
         #pos_sats_pred = GroupPos[ind_sats_pred]
+
 
         """
         pos_sats_pred -= GroupPos[ind_sats_pred]
@@ -144,17 +166,44 @@ for i in range(len(fun_types)):
         hist, _ = np.histogram(pos_sats_pred, bins=rbins)
         plt.figure(figsize=(9, 7))
         plt.plot(rbinc, hist)
+        plt.show()
         """
         
         pos_pred = np.vstack((pos_cent_pred, pos_sats_pred))
-        #pos_pred = pos_cent_pred
-        #pos_pred = pos_sats_pred
-
+        vel_pred = np.vstack((vel_cent_pred, vel_sats_pred))
+        
         pos_cent_true = SubhaloPos[index_cent[:len(pos_cent_pred)]]
         pos_sats_true = SubhaloPos[index_sats[:len(pos_sats_pred)]]
+        vel_cent_true = SubhaloVel[index_cent[:len(pos_cent_pred)]]
+        vel_sats_true = SubhaloVel[index_sats[:len(pos_sats_pred)]]
         #pos_sats_true = GroupPos[SubhaloGrNr[index_sats[:len(pos_sats_pred)]]]
         #pos_cent_true = GroupPos[SubhaloGrNr[index_cent[:len(pos_cent_pred)]]]
 
+        """
+        vel_sats_pred -= GroupVel[ind_sats_pred]
+        vel_sats_pred /= GroupVelDisp[ind_sats_pred, None]
+        vel_sats_pred = np.sqrt(np.sum(vel_sats_pred**2, axis=1))
+        vel_sats_pred = np.sort(vel_sats_pred)[::-1]
+        vbins = np.logspace(-3, 1, 41)
+        vbinc = (vbins[1:] + vbins[:-1])*.5
+        hist_pred, _ = np.histogram(vel_sats_pred, bins=vbins)
+        
+        vel_sats_true -= GroupVel[SubhaloGrNr[index_sats[:len(pos_sats_pred)]]]
+        vel_sats_true /= GroupVelDisp[SubhaloGrNr[index_sats[:len(pos_sats_pred)]], None]
+        vel_sats_true = np.sqrt(np.sum(vel_sats_true**2, axis=1))
+        vel_sats_true = np.sort(vel_sats_true)[::-1]
+        vbins = np.logspace(-3, 1, 41)
+        vbinc = (vbins[1:] + vbins[:-1])*.5
+        hist_true, _ = np.histogram(vel_sats_true, bins=vbins)
+        
+        plt.figure(figsize=(9, 7))
+        plt.plot(vbinc, hist_pred, label='pred')
+        plt.plot(vbinc, hist_true, label='true')
+        plt.legend()
+        plt.show()
+        quit()
+        """
+        
         """
         pos_sats_true -= GroupPos[SubhaloGrNr[index_sats[:len(pos_sats_pred)]]]
         pos_sats_true[pos_sats_true > Lbox/2.] -= Lbox
@@ -167,9 +216,14 @@ for i in range(len(fun_types)):
         """
         
         pos_true = np.vstack((pos_cent_true, pos_sats_true))
+        vel_true = np.vstack((vel_cent_true, vel_sats_true))
         #pos_true = pos_cent_true
         #pos_true = pos_sats_true
 
+        # adding RSDs
+        pos_true[:, 2] += vel_true[:, 2]*(1.+redshift)/H_z*h # Mpc/h
+        pos_pred[:, 2] += vel_pred[:, 2]*(1.+redshift)/H_z*h # Mpc/h
+        
         pos_true %= Lbox
         pos_pred %= Lbox
         w_pred = np.ones(pos_pred.shape[0], dtype=pos_pred.dtype)
@@ -177,23 +231,42 @@ for i in range(len(fun_types)):
         print("true and fake difference = ", len(w_pred)-len(w_true))
         print("fake number = ", len(w_pred))
 
-        # N_dim should maybe be 5
-        rat_mean, rat_err, corr_shuff_mean, corr_shuff_err, corr_true_mean, corr_true_err, _ = get_jack_corr(pos_true, w_true, pos_pred, w_pred, Lbox, N_dim=3, bins=rbins)
-
-
+        pos_true = pos_true.astype(np.float32)
+        pos_pred = pos_pred.astype(np.float32)
         
+        # N_dim should maybe be 5
+        #ratl0_mean, ratl0_err, ratl2_mean, ratl2_err, xil0_shuff_mean, xil0_shuff_err, xil0_true_mean, xil0_true_err, xil2_shuff_mean, xil2_shuff_err, xil2_true_mean, xil2_true_err, _ = get_jack_xi_l0l2(pos_true, pos_pred, Lbox, N_dim=3, bins=rbins)
+        xil0_pred_mean, xil2_pred_mean, _ = get_xi_l0l2(pos_pred, Lbox, rbins)
+        xil0_true_mean, xil2_true_mean, _ = get_xi_l0l2(pos_true, Lbox, rbins)
+        ratl0_mean = xil0_pred_mean/xil0_true_mean
+        ratl2_mean = xil2_pred_mean/xil2_true_mean
+        xil0_pred_err, xil0_true_err = np.zeros_like(xil0_true_mean), np.zeros_like(xil0_true_mean)
+        xil2_pred_err, xil2_true_err = np.zeros_like(xil0_true_mean), np.zeros_like(xil0_true_mean)
+        ratl0_err, ratl2_err = np.zeros_like(xil0_true_mean), np.zeros_like(xil0_true_mean)
+
+        print("xi l0 = ", xil0_pred_mean)
+        print("xi l2 = ", xil2_pred_mean)
+
         # remove
         # for testing quickly
         plt.figure(figsize=(9, 7))
         plt.plot(rbinc, np.ones(len(rbinc)), 'k--')
-        plt.errorbar(rbinc, corr_true_mean*rbinc**2, yerr=corr_true_err*rbinc**2, ls='-', capsize=4, color='black', label='True')
-        plt.errorbar(rbinc, corr_shuff_mean*rbinc**2, yerr=corr_shuff_err*rbinc**2, ls='-', capsize=4, color='dodgerblue', label='Predicted')
+        plt.errorbar(rbinc, xil0_true_mean*rbinc**2, yerr=xil0_true_err*rbinc**2, ls='-', capsize=4, color='black', label='True l0')
+        plt.errorbar(rbinc, xil0_pred_mean*rbinc**2, yerr=xil0_pred_err*rbinc**2, ls='-', capsize=4, color='dodgerblue', label='Predicted l0')
+        plt.errorbar(rbinc, xil2_true_mean*rbinc**2, yerr=xil2_true_err*rbinc**2, ls='--', capsize=4, color='black', label='True l2')
+        plt.errorbar(rbinc, xil2_pred_mean*rbinc**2, yerr=xil2_pred_err*rbinc**2, ls='--', capsize=4, color='dodgerblue', label='Predicted l2')
         plt.xscale('log')
+        plt.ylabel(r'$\xi(r) r^2$')
+        plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
+        plt.legend()
         #plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
 
         plt.figure(figsize=(9, 7))
         plt.plot(rbinc, np.ones(len(rbinc)), 'k--')
-        plt.errorbar(rbinc, rat_mean, yerr=rat_err, ls='-', capsize=4, color='dodgerblue', label='Predicted')
+        plt.errorbar(rbinc, ratl0_mean, yerr=ratl0_err, ls='-', capsize=4, color='dodgerblue')
+        plt.errorbar(rbinc, ratl2_mean, yerr=ratl2_err, ls='--', capsize=4, color='dodgerblue')
+        plt.ylabel(r'$\xi_{\rm pred}/\xi_{\rm true}$')
+        plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
         plt.xscale('log')
         #plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
         plt.show()

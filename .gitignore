@@ -1,0 +1,9 @@
+*~
+*pyc
+__pycache__
+*log
+*png
+*pdf
+*sh
+*txt
+*data*

@@ -32,7 +32,7 @@ mode = 'all' # fitting once for all
 print(fit_type)
 #n_gal = '7.4e-04'
 n_gal = '2.0e-03'
-other_dir = '/home/boryanah/MTNG/hod/'
+other_dir = '/home/boryanah/MTNG/assembly_bias/'
 
 # rad vs not rad
 params = ['GroupVirial', 'GroupConcRad', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']

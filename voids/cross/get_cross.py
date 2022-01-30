@@ -23,7 +23,7 @@ gal_type = 'LRG'
 #fit_type = 'ramp'
 fit_type = 'plane'
 print(fit_type)
-other_dir = '/home/boryanah/MTNG/hod/'
+other_dir = '/home/boryanah/MTNG/assembly_bias/'
 #mode = 'bins'
 mode = 'all'
 fun_type = 'erf'

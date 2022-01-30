@@ -10,11 +10,12 @@ tng_dir = "/mnt/alan1/boryanah/MTNG/"
 snapshot = 179
 str_snap = f"_{snapshot:d}"
 Lbox = 500. # Mpc/h
-gal_types = ['LRG', 'ELG']
+#gal_types = ['LRG', 'ELG']
+gal_types = ['ELG']
 #gal_type = 'ELG'
 #gal_type = 'LRG'
 n_gals = ['5.9e-04', '7.4e-04', '9.7e-04', '2.0e-03']
-n_gals = ['2.0e-03']
+n_gals = ['5.9e-04']
 
 # load other halo properties
 GroupPos_fp = np.load(tng_dir+'data_fp/GroupPos_fp'+str_snap+'.npy')

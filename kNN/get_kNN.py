@@ -28,7 +28,7 @@ mode = 'all' # fitting once for all
 print(fit_type)
 n_gal = '7.4e-04'
 mstar_elg_thresh = 5e7
-other_dir = '/home/boryanah/MTNG/hod/'
+other_dir = '/home/boryanah/MTNG/assembly_bias/'
 
 params = ['GroupVirial', 'GroupConc', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']
 n_combos = len(params)*(len(params)-1)//2

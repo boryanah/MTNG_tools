@@ -1,5 +1,5 @@
 """
-Given halo property, predict halo occupancy and satellite distn and save galaxy distribution
+Given halo property, predict halo occupancy and satellite distn and save galaxy distribution for DMO simulation
 """
 import os
 import sys
@@ -11,17 +11,22 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.optimize import minimize
 from scipy import special
 from scipy.interpolate import interp1d
+import Corrfunc # TESTING
+
+zs = [0., 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0]
+snaps = [264, 237, 214, 179, 151, 129, 94, 80, 69, 51]
+z_dict = {}
+for i in range(len(zs)):
+    z_dict[snaps[i]] = zs[i]
 
 hexcolors_bright = ['#0077BB','#33BBEE','#0099BB','#EE7733','#CC3311','#EE3377','#BBBBBB']
 greysafecols = ['#809BC8', '#FF6666', '#FFCC66', '#64C204']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
-snapshot = 179; redshift = 1.
 gal_type = sys.argv[1] # 'LRG' # 'ELG'
 fit_type = sys.argv[2] # 'ramp' # 'plane'
 fun_cent = 'linear' # 'tanh' # 'erf' # 'gd' # 'abs' # 'arctan'
-n_gal = '2.0e-03' # '7.0e-04'
 fun_sats = 'linear'
 method = 'powell' # 'Nelder-Mead'
 mode = 'all'#'all', 'bins'
@@ -38,30 +43,44 @@ if len(sys.argv) > 4:
 else:
     want_splash = False
 splash_str = "_splash" if want_splash else ""
-print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}")
-
+if len(sys.argv) > 5:
+    n_gal = sys.argv[5]
+else:
+    n_gal = '2.0e-03' # '7.0e-04'
+if len(sys.argv) > 6:
+    snapshot = int(sys.argv[6])
+    snapshot_dm += 5                
+    redshift = z_dict[snapshot]
+else:
+    snapshot = 179; snapshot_dm = 184; redshift = 1.
+print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{snapshot:d}_{n_gal}")
 
 def downsample_counts(GroupCount, GroupCountPred):
     GroupCountCopy = GroupCount.copy()
-    diff = np.abs(np.sum(GroupCountPred) - np.sum(GroupCount))
+    diff = (np.sum(GroupCountPred) - np.sum(GroupCount))
     print("difference = ", diff)
-    if np.sum(GroupCountPred) < np.sum(GroupCount):
+    if diff < 0:
         GroupCountChange = GroupCountCopy.copy()
-    else:
-        GroupCountChange = GroupCountPred.copy()
-    index_halo = np.arange(len(GroupCountChange), dtype=int)
-    index_halo = index_halo[GroupCountChange > 0]
-    count = GroupCountChange[GroupCountChange > 0].astype(float)
-    count /= np.sum(count)
-    #index_all = np.repeat(index_halo, count)
-    samples = np.random.choice(index_halo, diff, replace=False, p=count)
-    GroupCountChange[samples] -= 1
-    if np.sum(GroupCountPred) < np.sum(GroupCountCopy):
+        halo_index = np.arange(len(GroupCountChange), dtype=int)
+        halo_index = halo_index[GroupCountChange > 0]
+        count = GroupCountChange[GroupCountChange > 0].astype(float)
+        count /= np.sum(count)
+        #index_all = np.repeat(halo_index, count)
+        samples = np.random.choice(halo_index, np.abs(diff), replace=False, p=count)
+        GroupCountChange[samples] -= 1
         GroupCountCopy = GroupCountChange
     else:
+        GroupCountChange = GroupCountPred.copy()
+        halo_index_dm = np.arange(len(GroupCountChange), dtype=int)
+        halo_index_dm = halo_index_dm[GroupCountChange > 0]
+        count = GroupCountChange[GroupCountChange > 0].astype(float)
+        count /= np.sum(count) # normalize so it sums to 1
+        #index_all = np.repeat(halo_index, count)
+        samples = np.random.choice(halo_index_dm, np.abs(diff), replace=False, p=count)
+        GroupCountChange[samples] -= 1
         GroupCountPred = GroupCountChange
     
-    print("predicted and true total number of galaxies", np.sum(GroupCountPred), np.sum(GroupCountCopy))
+    assert np.sum(GroupCountPred) == np.sum(GroupCountCopy), "must be equal after changing"
     GroupCountPred = GroupCountPred.astype(GroupPos.dtype)
     GroupCountCopy = GroupCountCopy.astype(GroupPos.dtype)
     return GroupCountCopy, GroupCountPred
@@ -87,8 +106,13 @@ def like_cent(pars):
     ln_like *= -1.
     return ln_like
 
+
 def prob_linear_cent(a, b):
     p = (1. + (a*x[choice] + b*y[choice])*(1.-cts_cent_mean[choice])) * cts_cent_mean[choice]
+    return p
+
+def prob_linear_cent_dm(a, b):
+    p = (1. + (a*x_dm[choice_dm] + b*y_dm[choice_dm])*(1.-cts_cent_mean_dm[choice_dm])) * cts_cent_mean_dm[choice_dm]
     return p
 
 def prob_erf_cent(a, b):
@@ -148,6 +172,10 @@ def prob_linear_sats(a, b):
     p = (1. + a*x[choice] + b*y[choice]) * cts_sats_mean[choice]
     return p
 
+def prob_linear_sats_dm(a, b):
+    p = (1. + a*x_dm[choice_dm] + b*y_dm[choice_dm]) * cts_sats_mean_dm[choice_dm]
+    return p
+
 params = ['GroupVirial', 'GroupConc', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']#, 'GroupGamma'] # 'GroupConcRad'
 n_combos = len(params)*(len(params)-1)//2
 if 'ramp' == fit_type:
@@ -168,19 +196,18 @@ else:
                 tertiaries.append(params[i_param])
                 print(params[j_param], params[i_param])
 print("combos = ", len(secondaries))
-#secondaries = ['GroupEnv_R2']
+secondaries = ['GroupEnv_R2']
 #secondaries = ['GroupGamma']
 #secondaries = ['GroupConc']
 #secondaries = ['GroupHalfmassRad']
 #secondaries = ['GroupVelDispSqR']
 #secondaries = ['GroupVelAni']
-#secondaries = ['Group_M_Crit200_peak']
-secondaries = ['GroupEnvAdapt']
 #secondaries = ['GroupPotentialCen'] # helps the most I think
-tertiaries = ['GroupConc']
+#tertiaries = ['GroupConc']
 
 if fun_cent == 'linear':
     prob_cent = prob_linear_cent
+    prob_cent_dm = prob_linear_cent_dm
 elif fun_cent == 'erf':
     prob_cent = prob_erf_cent
 elif fun_cent == 'gd':
@@ -193,6 +220,7 @@ elif fun_cent == 'tanh':
     prob_cent = prob_tanh_cent
 if fun_sats == 'linear':
     prob_sats = prob_linear_sats
+    prob_sats_dm = prob_linear_sats_dm
 
 # load other halo properties
 SubhaloGrNr = np.load(tng_dir+f'data_fp/SubhaloGroupNr_fp_{snapshot:d}.npy')
@@ -208,10 +236,10 @@ if want_splash:
     GrMcrit = np.load(tng_dir+f'data_fp/Group_M_Splash_fp_{snapshot:d}.npy')
 else:
     GrMcrit = np.load(tng_dir+f'data_fp/Group_M_TopHat200_fp_{snapshot:d}.npy')*1.e10
-Group_M_Crit200 = np.load(tng_dir+f'data_fp/Group_M_Crit200_fp_{snapshot:d}.npy')
 GrRcrit = np.load(tng_dir+f'data_fp/Group_R_TopHat200_fp_{snapshot:d}.npy')
 index_halo = np.arange(len(GrMcrit), dtype=int)
 
+# TESTING! needs to be regenerated for splash
 # load galaxy sample info
 index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}.npy")
 if want_splash:
@@ -254,6 +282,7 @@ else:
     GroupCountCent = np.load(tng_dir+f"data_fp/GroupCentsCount{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npy")
     GroupCountSats = GroupCount-GroupCountCent
 
+# TESTING! needs to be regenerated and sorted
 if subsamp_or_subhalos == 'subsamp':
     # load particle subsamples for some halos
     GroupSubsampIndex = np.load(f"../hod_subsamples/data/subsample_halo_index_fp_{snapshot:d}.npy")
@@ -264,6 +293,7 @@ if subsamp_or_subhalos == 'subsamp':
     PartSubsampPos = np.load(f"../hod_subsamples/data/subsample_pos_fp_{snapshot:d}.npy")
     PartSubsampVel = np.load(f"../hod_subsamples/data/subsample_vel_fp_{snapshot:d}.npy")
 
+    
     
 # galaxy properties
 mcrit_sats = GrMcrit[parent_sats]
@@ -309,24 +339,31 @@ vrbins = np.linspace(-1.3, 1.3, 41)
 vrbinc = (vrbins[1:]+vrbins[:-1])*.5
 many_vrs = np.linspace(-1., 1., 100)
 
+# load dm halo properties
+# TESTING! splashback is different not sure what this means maybe indexing?
+GroupPos_dm = np.load(tng_dir+f'data_dm/GroupPos_dm_{snapshot_dm:d}.npy')
+GrMcrit_dm = np.load(tng_dir+f'data_dm/Group_M_TopHat200_dm_{snapshot_dm:d}.npy')*1.e10
+GrRcrit_dm = np.load(tng_dir+f'data_dm/Group_R_TopHat200_dm_{snapshot_dm:d}.npy')
+GroupVelDisp_dm = np.load(tng_dir+f'data_dm/GroupVelDisp_dm_{snapshot_dm:d}.npy')
+GroupVel_dm = np.load(tng_dir+f'data_dm/GroupVel_dm_{snapshot_dm:d}.npy')
+index_halo_dm = np.arange(len(GrMcrit_dm), dtype=int) # could sort this to preserve the original order
+i_sort = np.argsort(GrMcrit_dm)[::-1]
+GroupPos_dm = GroupPos_dm[i_sort]
+GrMcrit_dm = GrMcrit_dm[i_sort]
+GroupVel_dm = GroupVel_dm[i_sort]
+GroupVelDisp_dm = GroupVelDisp_dm[i_sort]
+GrRcrit_dm = GrRcrit_dm[i_sort]
+print("Note that because of the sorting, you can't use SubhaloGrNr")
 
-"""
-hist_sats, _ = np.histogram(sbdnm_sats, bins=rbins)
-p_sats = hist_sats/np.sum(hist_sats)
-plt.plot(rbinc, hist_sats, label='sats')
-plt.legend()
-plt.show()
-vcrit_cent = GroupVelDisp[SubhaloGrNr[index_cent]]
-vdiff_cent = SubhaloVel[index_cent]-GroupVel[SubhaloGrNr[index_cent]]
-sbvnm_cent = np.sqrt(np.sum((vdiff_cent)**2, axis=1))/vcrit_cent
-hist_cent, _ = np.histogram(sbvnm_cent, bins=vbins, density=True)
-hist_sats, _ = np.histogram(sbvnm_sats, bins=vbins, density=True)
-plt.plot(vbinc, hist_cent, label='cent')
-plt.plot(vbinc, hist_sats, label='sats')
-plt.legend()
-plt.show()
-"""
+# TESTING!!!!!!!!!!!!!!!!!!!!!!!!
+GroupSubsampFirst = np.zeros(len(GrMcrit_dm), dtype=int)
+GroupSubsampIndex = np.zeros(len(GrMcrit_dm), dtype=int)
+GroupSubsampSize = np.zeros(len(GrMcrit_dm), dtype=int)
 
+# need to add Lbox/4. to all the dm positions because of offset
+print("NOTICE THAT WE ARE CORRECTING FOR BOX/4 SHIFT") # checked
+GroupPos_dm += np.array([Lbox/4., 0., 0.])
+GroupPos_dm %= Lbox
 
 # bins for env and conc
 cbins = np.linspace(-0.5, 0.5, 5)
@@ -346,6 +383,13 @@ else:
     mbins = np.logspace(11, 14, 31) # og
 mbinc = (mbins[1:]+mbins[:-1])*0.5
 print("number of halos above the last mass bin = ", np.sum(mbins[-1] < GrMcrit))
+mbins_dm = np.zeros(len(mbins))
+
+# halos that are never moved
+n_top = np.sum(mbins[-1] < GrMcrit)
+print("number of halos above the last mass bin = ", n_top)
+mbins_dm[-1] = GrMcrit_dm[n_top]
+print("total occupancy of the top halos = ", np.sum(GroupCountCent[(mbins[-1] < GrMcrit)])+np.sum(GroupCountSats[(mbins[-1] < GrMcrit)]))
 
 for i_pair in range(len(secondaries)):
     # read secondary and tertiary property names
@@ -356,45 +400,62 @@ for i_pair in range(len(secondaries)):
         tertiary = 'None'
     print("param pair = ", i_pair, secondary, tertiary)
 
-    # array with predicted counts
-    GroupCountCentPred = (GroupCountCent.copy()).astype(GrMcrit.dtype)
-    GroupCountSatsPred = (GroupCountSats.copy()).astype(GrMcrit.dtype)
+    # array with predicted counts 
+    GroupCountCentPred_dm = np.zeros(len(GrMcrit_dm))
+    GroupCountSatsPred_dm = np.zeros(len(GrMcrit_dm))
+    GroupCountSatsPred_dm[:n_top] = GroupCountSats[(mbins[-1] < GrMcrit)]
+    GroupCountCentPred_dm[:n_top] = GroupCountCent[(mbins[-1] < GrMcrit)]
 
     # load secondary and tertiary property
-    # TESTING
-    if "peak" in secondary: 
-        GroupEnv = np.load(tng_dir+f'data_fp/{secondary:s}_fp_{snapshot:d}.npy')/Group_M_Crit200
-    else:
-        GroupEnv = np.load(tng_dir+f'data_fp/{secondary:s}_fp_{snapshot:d}.npy')
+    GroupEnv = np.load(tng_dir+f'data_fp/{secondary:s}_fp_{snapshot:d}.npy')
+    GroupEnv_dm = np.load(tng_dir+f'data_dm/{secondary:s}_dm_{snapshot_dm:d}.npy')[i_sort] # crucial to sort!!!
     if fit_type == 'ramp':
         GroupConc = np.zeros(len(GroupEnv))
+        GroupConc_dm = np.zeros(len(GroupEnv_dm))
     else:
         GroupConc = np.load(tng_dir+f'data_fp/{tertiary:s}_fp_{snapshot:d}.npy')
-            
-    # concentrations of the satellite galaxies
-    conc_sats = GroupConc[parent_sats]
-    env_sats = GroupEnv[parent_sats]
+        GroupConc_dm = np.load(tng_dir+f'data_dm/{tertiary:s}_dm_{snapshot_dm:d}.npy')[i_sort]
 
-    # create empty arrays for the mean counts per halo and ranked sec/tert prop
+    # concentrations, environments of the satellite galaxies
+    conc_sats = GroupConc[SubhaloGrNr[index_sats]]
+    env_sats = GroupEnv[SubhaloGrNr[index_sats]]
+
+    # initialize ranking arrays and mean number of gals in a halo per mass bin
     x = np.zeros_like(GrMcrit)
     y = np.zeros_like(GrMcrit)
     cts_sats_mean = np.zeros_like(GrMcrit)
     cts_cent_mean = np.zeros_like(GrMcrit)
 
-    # in case we are saving all the fitted a and b params for sec and tert prop
+    # initialize same arrays for dmo
+    x_dm = np.zeros_like(GrMcrit_dm)
+    y_dm = np.zeros_like(GrMcrit_dm)
+    cts_sats_mean_dm = np.zeros_like(GrMcrit_dm)
+    cts_cent_mean_dm = np.zeros_like(GrMcrit_dm)
+
+    # only used if getting a and b per halo mass bin
     a_arr_cent = np.zeros(len(mbins)-1)
     b_arr_cent = np.zeros(len(mbins)-1)
     a_arr_sats = np.zeros(len(mbins)-1)
     b_arr_sats = np.zeros(len(mbins)-1)
     
+    # initialize counter for each mass bin (needed for abundance matching)
+    sum_halo = 0
+    sum_halo += n_top
+
     # looping over each mass bin
-    for i in range(len(mbins)-1):
+    for i in range(len(mbins)-1)[::-1]: # crucial to invert cause of abundance matching
         # mass bin choice
         choice = ((mbins[i]) < GrMcrit) & ((mbins[i+1]) >= GrMcrit)
         nhalo = np.sum(choice)
         if nhalo == 0: continue
 
-        # true counts per halo
+        # equivalent choice for dmo
+        choice_dm = np.arange(sum_halo, sum_halo+nhalo, dtype=int) # TESTING (equiv?)
+        #choice_dm = (mbins_dm[i] < GrMcrit_dm) & (mbins_dm[i+1] >= GrMcrit_dm) # og
+        mbins_dm[i] = GrMcrit_dm[sum_halo+nhalo] # low bound
+        sum_halo += nhalo # incrementing for abundance matching
+
+        # counts and params for this bin
         cts = GroupCount[choice]
         cts_cent = GroupCountCent[choice]
         cts_sats = GroupCountSats[choice]
@@ -405,6 +466,8 @@ for i_pair in range(len(secondaries)):
         # otherwise select sec and tert property for halos in mass bin
         env = GroupEnv[choice]
         conc = GroupConc[choice]
+        env_dm = GroupEnv_dm[choice_dm]
+        conc_dm = GroupConc_dm[choice_dm]
         
         # turn the secondary and tertiary parameter into ranked arrays
         rank_env = np.argsort(np.argsort(env))/(len(env)-1)-0.5
@@ -412,26 +475,38 @@ for i_pair in range(len(secondaries)):
             rank_conc = np.argsort(np.argsort(conc))/(len(conc)-1)-0.5
         elif fit_type == 'ramp':
             rank_conc = np.zeros_like(rank_env)
+        rank_env_dm = np.argsort(np.argsort(env_dm))/(len(env_dm)-1)-0.5
+        if fit_type == 'plane':
+            rank_conc_dm = np.argsort(np.argsort(conc_dm))/(len(conc_dm)-1)-0.5
+        elif fit_type == 'ramp':
+            rank_conc_dm = np.zeros_like(rank_env_dm)
 
-        # record ranked arrays into x and y, and mean central and satellite occupations for the mass bin
+        # record mean central and satellite occupation
         cts_sats_mean[choice] = np.mean(cts_sats)
         cts_cent_mean[choice] = np.mean(cts_cent)
+        cts_sats_mean_dm[choice_dm] = np.mean(cts_sats)
+        cts_cent_mean_dm[choice_dm] = np.mean(cts_cent)
+
+        # record ranked arrays into x and y
         x[choice] = rank_env
         y[choice] = rank_conc
+        x_dm[choice_dm] = rank_env_dm
+        y_dm[choice_dm] = rank_conc_dm
 
         # if we are fitting a and b parameters individually for each mass bin
         if mode == 'bins':
-            # we minimize for a and b in each mass bin
+            
+            # then we minimize for a and b
             res_cent = minimize(like_cent, p0, method=method)
             res_sats = minimize(like_sats, p0, method=method)
             a_cent, b_cent = res_cent['x']
             a_sats, b_sats = res_sats['x']
-            print("centrals: a, b = ", a_cent, b_cent)
-            print("satellites: a, b = ", a_sats, b_sats)
-
+            print(f"a_cent, b_cent = {a_cent:.4f}, {b_cent:.4f}")
+            print(f"a_sats, b_sats = {a_sats:.4f}, {b_sats:.4f}")
+            
             # compute prediction for occupancy given best-fit a and b and save into counts arrays (equiv to true counts)
-            GroupCountCentPred[choice] = prob_cent(a_cent, b_cent)
-            GroupCountSatsPred[choice] = prob_sats(a_sats, b_sats)
+            GroupCountCentPred_dm[choice_dm] = prob_cent_dm(a_cent, b_cent)
+            GroupCountSatsPred_dm[choice_dm] = prob_sats_dm(a_sats, b_sats)
 
             # save the best-fit a and b values
             a_arr_cent[i] = a_cent
@@ -443,128 +518,126 @@ for i_pair in range(len(secondaries)):
     if mode == 'all':
         # use only the halos within the mass range of interest (speeds up)
         choice = (mbins[0] < GrMcrit) & (mbins[-1] >= GrMcrit)
-
-        # TESTING!!!!!!!!!!!!!! 
-        # we minimize for a and b in all mass bins
+        """
+        # then we minimize for a and b
         res_cent = minimize(like_cent, p0, method=method)
         res_sats = minimize(like_sats, p0, method=method)
         a_cent, b_cent = res_cent['x']
         a_sats, b_sats = res_sats['x']
-        print("centrals: a, b = ", a_cent, b_cent)
-        print("satellites: a, b = ", a_sats, b_sats)
+        print(f"a_cent, b_cent = {a_cent:.4f}, {b_cent:.4f}")
+        print(f"a_sats, b_sats = {a_sats:.4f}, {b_sats:.4f}")
+        """
+        a_cent, b_cent = 0.536, 0.
+        a_sats, b_sats = 0.725, 0.
         
-        # for tert conc and sec env 7.4e-4 (plane)
-        #a_cent, b_cent =  0.6041735518063931, 1.3958260405470013
-        #a_sats, b_sats =  0.8542338199867262, -1.0231410553515738
-
-        # for tert conc and sec env 9.7e-4 (plane)
-        #a_cent, b_cent =  0.5835058889187836, 1.4164932429475072
-        #a_sats, b_sats =  0.8024862313515366, -0.986720598710901
-        #a_cent, b_cent =  0.5694688290575092, 0.
-        #a_sats, b_sats =  0.9491890530406367, 0.
-        
-        # for tert conc and sec env 2.0e-3 (plane)
-        #a_cent, b_cent =  0.5477703384636718, 1.4522284872633087
-        #a_sats, b_sats =  0.6140774140191954, -0.9207314275217406
-        
-        # for sec env 2.0e-3 (ramp)
-        #a_cent, b_cent = 0.5366893006594434, 0.
-        #a_sats, b_sats = 0.7257, 0.
-
-        # for sec env 2.0e-3 (ramp) (splash)
-        #a_cent, b_cent =  0.21679, -0.5883546863255535
-        #a_sats, b_sats =  0.9275, 2.348064127811263e-11
-
-        # for tert conc sec env 2.0e-3 (plane) (splash)
-        #a_cent, b_cent = -0.04567691486372963, 1.9543230773893785
-        #a_sats, b_sats =  0.6491189308726304, -1.1308948999347246
-        
+        # select equivalent halos in dmo
+        #choice_dm = (mbins_dm[0] < GrMcrit_dm) & (mbins_dm[-1] >= GrMcrit_dm) # og        
+        choice_dm = np.arange(n_top, sum_halo, dtype=int) # TESTING (equiv?)
         
         # compute prediction for occupancy and save into a new array for centrals and satellites
-        GroupCountCentPred[choice] = prob_cent(a_cent, b_cent)
-        GroupCountSatsPred[choice] = prob_sats(a_sats, b_sats)
-
+        GroupCountCentPred_dm[choice_dm] = prob_cent_dm(a_cent, b_cent)
+        GroupCountSatsPred_dm[choice_dm] = prob_sats_dm(a_sats, b_sats)
+    
     # print out number of galaxies
-    print("pred satellites = ", np.sum(GroupCountSatsPred))
+    print("pred satellites = ", np.sum(GroupCountSatsPred_dm))
     print("true satellites = ", np.sum(GroupCountSats))
-    print("pred centrals = ", np.sum(GroupCountCentPred))
+    print("pred centrals = ", np.sum(GroupCountCentPred_dm))
     print("true centrals = ", np.sum(GroupCountCent))
 
     # make sure we don't get negative counts or values larger than one for the centrals (doesn't make a difference)
-    GroupCountSatsPred[GroupCountSatsPred < 0.] = 0.
-    GroupCountCentPred[GroupCountCentPred > 1.] = 1.
-    GroupCountCentPred[GroupCountCentPred < 0.] = 0.
+    GroupCountSatsPred_dm[GroupCountSatsPred_dm < 0] = 0
+    GroupCountCentPred_dm[GroupCountCentPred_dm > 1] = 1
+    GroupCountCentPred_dm[GroupCountCentPred_dm < 0] = 0
     
     # draw from a poisson and a binomial distribution for the halos in the mass range of interest
     choice = (mbins[-1] >= GrMcrit) & (mbins[0] < GrMcrit)
-    GroupCountSatsPred[choice] = np.random.poisson(GroupCountSatsPred[choice], len(GroupCountSatsPred[choice]))
-    GroupCountCentPred = (np.random.rand(len(GroupCountCentPred)) < GroupCountCentPred)
-    GroupCountSatsPred = GroupCountSatsPred.astype(int)
-    GroupCountCentPred = GroupCountCentPred.astype(int)
-    print("pred poisson satellites = ", np.sum(GroupCountSatsPred), np.sum(GroupCountSats))
-    print("pred binomial centrals = ", np.sum(GroupCountCentPred), np.sum(GroupCountCent))
+    choice_dm = (mbins_dm[-1] >= GrMcrit_dm) & (mbins_dm[0] < GrMcrit_dm)
+    GroupCountSatsPred_dm[choice_dm] = np.random.poisson(GroupCountSatsPred_dm[choice_dm], len(GroupCountSatsPred_dm[choice_dm]))
+    GroupCountCentPred_dm = (np.random.rand(len(GroupCountCentPred_dm)) < GroupCountCentPred_dm)
+    GroupCountSatsPred_dm = GroupCountSatsPred_dm.astype(int)
+    GroupCountCentPred_dm = GroupCountCentPred_dm.astype(int)
+    print("pred poisson satellites = ", np.sum(GroupCountSatsPred_dm), np.sum(GroupCountSats))
+    print("pred binomial centrals = ", np.sum(GroupCountCentPred_dm), np.sum(GroupCountCent))
     print("-------------------")
     
     # downsample the galaxies in order for the pred to have the same number of satellites and centrals as the truth
     GroupCountCentCopy = GroupCountCent.copy()
-    GroupCountSatsCopy = GroupCountSats.copy()
-    GroupCountCentCopy[choice], GroupCountCentPred[choice] = downsample_counts(GroupCountCent[choice], GroupCountCentPred[choice])
-    GroupCountSatsCopy[choice], GroupCountSatsPred[choice] = downsample_counts(GroupCountSats[choice], GroupCountSatsPred[choice])
-    GroupCountSatsPred = GroupCountSatsPred.astype(int)
-    GroupCountCentPred = GroupCountCentPred.astype(int)
-    
-    # take the true counts instead of the predictions (TESTING)
-    #GroupCountSatsPred = GroupCountSatsCopy
-    #GroupCountCentPred = GroupCountCentCopy
-    
-    # initialize arrays for storing the satellite info
-    pos_pred_sats = np.zeros((np.sum(GroupCountSatsPred), 3))
-    vel_pred_sats = np.zeros((np.sum(GroupCountSatsPred), 3))
-    ind_pred_sats = np.zeros(np.sum(GroupCountSatsPred), dtype=int)
+    GroupCountSatsCopy = GroupCountSats.copy() 
+    GroupCountCentCopy[choice], GroupCountCentPred_dm[choice_dm] = downsample_counts(GroupCountCent[choice], GroupCountCentPred_dm[choice_dm])
+    GroupCountSatsCopy[choice], GroupCountSatsPred_dm[choice_dm] = downsample_counts(GroupCountSats[choice], GroupCountSatsPred_dm[choice_dm])
+    GroupCountSatsPred_dm = GroupCountSatsPred_dm.astype(int)
+    GroupCountCentPred_dm = GroupCountCentPred_dm.astype(int)
+
+    print("after downsampling, sats cent = ", np.sum(GroupCountSatsPred_dm), np.sum(GroupCountCentPred_dm))
+
+    # TESTING!!!!!!!!!!!!
+    GroupCount = GroupCountSats + GroupCountCent
+    w_true = GroupCount[GroupCount > 0].astype(np.float32)
+    x_true = GroupPos[GroupCount > 0].astype(np.float32)
+    GroupCountPred_dm = GroupCountCentPred_dm + GroupCountSatsPred_dm
+    w_shuff = GroupCountPred_dm[GroupCountPred_dm > 0].astype(x_true.dtype)
+    x_shuff = GroupPos_dm[GroupCountPred_dm > 0].astype(x_true.dtype)
+    rbins = np.logspace(-1, 1.5, 31)
+    rbinc = (rbins[1:]+rbins[:-1])*.5
+    xi = Corrfunc.theory.xi(Lbox, 16, rbins, *x_true.T, weights=w_true, weight_type="pair_product")['xi']
+    xi_shuff = Corrfunc.theory.xi(Lbox, 16, rbins, *x_shuff.T, weights=w_shuff, weight_type="pair_product")['xi']
+    plt.plot(rbinc, xi_shuff/xi)
+    plt.show()
 
     # record pos and vel of centrals and parent halo index
-    pos_pred_cent = GroupPos[GroupCountCentPred > 0]
-    vel_pred_cent = GroupVel[GroupCountCentPred > 0]
-    ind_pred_cent = index_halo[GroupCountCentPred > 0]
+    pos_pred_sats = np.zeros((np.sum(GroupCountSatsPred_dm), 3))
+    vel_pred_sats = np.zeros((np.sum(GroupCountSatsPred_dm), 3))
+    ind_pred_sats = np.zeros(np.sum(GroupCountSatsPred_dm), dtype=int)
 
+    pos_pred_cent = GroupPos_dm[GroupCountCentPred_dm > 0]
+    vel_pred_cent = GroupVel_dm[GroupCountCentPred_dm > 0]
+    ind_pred_cent = index_halo_dm[GroupCountCentPred_dm > 0]
+    
+    
     # counter over satellites given
     sum_sats = 0
     
-    # loop over mass bins
+    # initialize counter for each mass bin (needed for abundance matching)
     for i in range(len(mbins)-1):
-        # select mass bin and skip if empty of halos
-        mchoice = ((mbins[i]) < GrMcrit) & ((mbins[i+1]) >= GrMcrit)
+        mchoice = ((mbins_dm[i]) < GrMcrit_dm) & ((mbins_dm[i+1]) >= GrMcrit_dm)
         nhalo = np.sum(mchoice)
         if nhalo == 0: continue
 
+        # abundance matched fp halo selection (only needed for setting thresholds for the satellite profile array)
+        mchoice_fp = ((mbins[i]) < GrMcrit) & ((mbins[i+1]) >= GrMcrit)
+        
         # predicted satellite occupancies in the mass bin (skip if none)
-        cts_sats_pred = GroupCountSatsPred[mchoice]
+        cts_sats_pred = GroupCountSatsPred_dm[mchoice]
         if np.sum(cts_sats_pred) == 0: continue
 
         # values of sec and tert prop, pos, vel, radius, dispersion, first, nsub and halo inds in mass bin
-        env = GroupEnv[mchoice]
-        conc = GroupConc[mchoice]
-        pos = GroupPos[mchoice]
-        vel = GroupVel[mchoice]
-        rcrit = GrRcrit[mchoice]
-        vcrit = GroupVelDisp[mchoice]
+        env = GroupEnv_dm[mchoice]
+        conc = GroupConc_dm[mchoice]
+        pos = GroupPos_dm[mchoice]
+        vel = GroupVel_dm[mchoice]
+        rcrit = GrRcrit_dm[mchoice]
+        vcrit = GroupVelDisp_dm[mchoice]
         if subsamp_or_subhalos == 'subhalos':
-            first = GroupFirstSub[mchoice]
+            first = GroupFirstSub[mchoice] # tuks
             nsub = GroupNsubs[mchoice]
         elif subsamp_or_subhalos == 'subsamp':
             first = GroupSubsampFirst[mchoice]
             nsub = GroupSubsampSize[mchoice]
-        index = index_halo[mchoice]
+        index = index_halo_dm[mchoice]
+
+        # env and conc for the fp halos (only needed for thresholds)
+        env_fp = GroupEnv[mchoice_fp]
+        conc_fp = GroupConc[mchoice_fp]
         
         # select the true satellites in mass bin (needed for drawing from radial distn)
-        choice_sats = ((mbins[i]) < mcrit_sats) & ((mbins[i+1]) >= mcrit_sats)
+        mchoice_sats = ((mbins[i]) < mcrit_sats) & ((mbins[i+1]) >= mcrit_sats)
 
         # select sec and tert prop of the satellite hosts and norm dist/vel to center
-        conc_ms = conc_sats[choice_sats]
-        env_ms = env_sats[choice_sats]
-        sbdnm_ms = sbdnm_sats[choice_sats]
-        sbvnm_ms = sbvnm_sats[choice_sats]
-        sbvrnm_ms = v_rad_sats[choice_sats]
+        conc_ms = conc_sats[mchoice_sats]
+        env_ms = env_sats[mchoice_sats]
+        sbdnm_ms = sbdnm_sats[mchoice_sats]
+        sbvnm_ms = sbvnm_sats[mchoice_sats]
+        sbvrnm_ms = v_rad_sats[mchoice_sats]
 
         # compute histogram of satellite dist/vel to center (needed only if no true sats at sec and tert prop)
         hist_sats, _ = np.histogram(sbdnm_ms, bins=rbins)
@@ -574,33 +647,39 @@ for i_pair in range(len(secondaries)):
         hist_sats, _ = np.histogram(sbvrnm_ms, bins=vrbins)
         vr_sats = hist_sats/np.sum(hist_sats)
         
-        # turn the secondary and tertiary parameter into ranked arrays for the halos
-        rank_env = np.argsort(np.argsort(env))/(len(env)-1.)-0.5
+        # turn the secondary and tertiary parameter into ranked arrays
+        rank_env = np.argsort(np.argsort(env))/(len(env)-1)-0.5
         if fit_type == 'plane':
-            rank_conc = np.argsort(np.argsort(conc))/(len(conc)-1.)-0.5
+            rank_conc = np.argsort(np.argsort(conc))/(len(conc)-1)-0.5
         elif fit_type == 'ramp':
             rank_conc = np.zeros_like(rank_env)
-        
-        # identify the 0, 25, 50, 75 and 100th percentiles in these arrays
+
+        # turn the secondary and tertiary parameter into ranked arrays
+        rank_env_fp = np.argsort(np.argsort(env_fp))/(len(env_fp)-1)-0.5
+        if fit_type == 'plane':
+            rank_conc_fp = np.argsort(np.argsort(conc_fp))/(len(conc_fp)-1)-0.5
+        elif fit_type == 'ramp':
+            rank_conc_fp = np.zeros_like(rank_env_fp)
+
+        # identify the 0, 25, 50, 75 and 100th percentiles
         env_thresh = np.zeros(5)
         conc_thresh = np.zeros(5)
         for j in range(1, len(env_thresh)-1):
-            env_thresh[j] = env[np.argmin(np.abs(rank_env - ebins[j]))]
-            conc_thresh[j] = conc[np.argmin(np.abs(rank_conc - cbins[j]))]
-        env_thresh[0] = env.min()-0.1
-        conc_thresh[0] = conc.min()-0.1
-        env_thresh[-1] = env.max()+0.1
-        conc_thresh[-1] = conc.max()+0.1
+            env_thresh[j] = env_fp[np.argmin(np.abs(rank_env_fp - ebins[j]))]
+            conc_thresh[j] = conc_fp[np.argmin(np.abs(rank_conc_fp - cbins[j]))]
+        env_thresh[0] = env_fp.min()-0.1
+        conc_thresh[0] = conc_fp.min()-0.1
+        env_thresh[-1] = env_fp.max()+0.1
+        conc_thresh[-1] = conc_fp.max()+0.1
 
         # initialize counter for number of times we didn't find true satellites at this bin of mass, c and e (used for rad prof)
         # and counter for number of predicted satellites that are close to an existing subhalo
         no_true_sats = 0
         close_to_exist = 0
         total_given = 0
-        # loop over each sec and tert prop bin
         for j in range(len(cbins)-1):
             for k in range(len(ebins)-1):
-                # select the halos in that bin of mass, sec and tert prop
+                # select the halos in that bin of mass, c and e
                 rchoice = (rank_env <= ebins[k+1]) & (rank_env > ebins[k])
                 if fit_type == 'plane':
                     rchoice &= (rank_conc <= cbins[j+1]) & (rank_conc > cbins[j])
@@ -630,8 +709,8 @@ for i_pair in range(len(secondaries)):
                     assert np.sum(hist_r) > 0 # assert we do have some objects in the rad bins
                     assert np.sum(hist_v) > 0 # assert we do have some objects in the disp bins
                     assert np.sum(hist_vr) > 0 # assert we do have some objects in the vrad bins
-                    
-                    # if there is only one radial bins with information, just take whatever you are offered (can't interpolate with 1 point)
+
+                    # if there is only one radial bin with information, just take whatever you are offered (can't interpolate with 1 point)
                     if np.sum(hist_r > 0.) == 1 or np.sum(hist_v > 0.) == 1 or np.sum(hist_vr > 0.) == 1:
                         pr = hist_r/np.sum(hist_r)
                         radius = np.random.choice(rbinc, ng, p=pr)
@@ -639,7 +718,6 @@ for i_pair in range(len(secondaries)):
                         velius = np.random.choice(vbinc, ng, p=pv)
                         pvr = hist_vr/np.sum(hist_vr)
                         velrad = np.random.choice(vrbinc, ng, p=pvr)
-                        #no_true_sats += ng
                     else:
                         # interpolate to get the rad and disp distn (must have two points for each)
                         pr = interp1d(rbinc[hist_r > 0.], hist_r[hist_r > 0.], bounds_error=False, fill_value=0.)(many_rs)
@@ -651,6 +729,7 @@ for i_pair in range(len(secondaries)):
                         pvr = interp1d(vrbinc[hist_vr > 0.], hist_vr[hist_vr > 0.], bounds_error=False, fill_value=0.)(many_vrs)
                         pvr /= np.sum(pvr)
                         velrad = np.random.choice(many_vrs, ng, p=pvr)
+
 
                 # index of first subhalo and total number of subhalos for each halo in bin of mass, c and e
                 start = first[rchoice]
@@ -674,13 +753,14 @@ for i_pair in range(len(secondaries)):
                     
                     # select pos and vel of subhalos/pcles in this halo
                     if subsamp_or_subhalos == 'subhalos':
-                        poses = SubhaloPos[start[n]:start[n]+npout[n]]
+                        poses = SubhaloPos[start[n]:start[n]+npout[n]] # tuks
                         vels = SubhaloVel[start[n]:start[n]+npout[n]]
                     elif subsamp_or_subhalos == 'subsamp':
                         poses = PartSubsampPos[start[n]:start[n]+npout[n]]
                         vels = PartSubsampVel[start[n]:start[n]+npout[n]]
                         if npout[n] == 0:
-                            print(f"eh empty {ct[n]:d} {GrMcrit[mchoice][rchoice][n]:.2e}"); poses = np.zeros((2,3)); vels = np.zeros((2,3)); # tuks
+                            #print(f"eh empty {ct[n]:d} {GrMcrit_dm[mchoice][rchoice][n]:.2e}");
+                            poses = np.zeros((2,3)); vels = np.zeros((2,3)); # tuks # TESTING
                     
                     # compute distance to halo center of subhalos/pcles
                     diffs = poses - pos[rchoice][n] # pos[rchoice][n], SubhaloPos[start[n]]: same
@@ -746,42 +826,11 @@ for i_pair in range(len(secondaries)):
                         ind_pred_sats[sum_sats] = ind[n]
                         sum_sats += 1
                         total_given += 1
-
-                # passed with flying colors for random vector assignment of pos and vel
-                """
-                # plot rad and disp distn in this bin of mass, c and e (TESTING)
-                if ng == 0 or np.sum(rchoice_ms) == 0: continue
-                print("number of satellites pred and true = ", ng, np.sum(rchoice_ms))
-
-                # compute disp hist for pred and true satellites
-                diff = np.sqrt(np.sum((vel_pred_sats[sum_sats-ng: sum_sats]-np.repeat(vel[rchoice], ct, axis=0))**2, axis=1))/np.repeat(vcrit[rchoice], ct)
-                hist_pred, _ = np.histogram(diff, bins=vbins)
-                hist_true, _ = np.histogram(sbvnm_ms[rchoice_ms], bins=vbins)
-
-                plt.figure(1)
-                plt.axvline(x=np.sqrt(1.), ls='--', color='black', zorder=0)
-                plt.plot(vbinc, hist_true, ls='-', color='red', lw=2, label='true')
-                plt.plot(vbinc, hist_pred, ls='-', color='blue', lw=2, label='pred')
-                #plt.xscale('log')
-                plt.legend()
-            
-                # compute rad hist for pred and true satellites
-                diff = np.sqrt(np.sum((pos_pred_sats[sum_sats-ng: sum_sats]-np.repeat(pos[rchoice], ct, axis=0))**2, axis=1))/np.repeat(rcrit[rchoice], ct)
-                hist_pred, _ = np.histogram(diff, bins=rbins)
-                hist_true, _ = np.histogram(sbdnm_ms[rchoice_ms], bins=rbins)
-
-                plt.figure(2)
-                plt.axvline(x=1., ls='--', color='black', zorder=0)
-                plt.plot(rbinc, hist_true, ls='-', color='red', lw=2, label='true')
-                plt.plot(rbinc, hist_pred, ls='-', color='blue', lw=2, label='pred')
-                plt.xscale('log')
-                plt.legend()
-                plt.show()
-                """
                 
-            # if ramp, you need only to cycle through sec property, so just exit loop once we've cycled through `k` loop
+            # if ramp you need only to cycle through environments
             if fit_type == 'ramp':
                 break
+
         # report numbers for this mass bin
         print("no true galaxies at this mass bin to get profile from = ", no_true_sats)
         print("number of pred satellites close to an existing subhalo = ", close_to_exist)
@@ -789,7 +838,7 @@ for i_pair in range(len(secondaries)):
 
     # ensure there are no satellites below that threshold (would still work if only centrals below (since we record them before)) if we want this just add below mass bin
     assert np.sum(mcrit_sats <= mbins[0]) == 0
-    
+
     # take true satellite pos, vel and halo ind of the halos above the mass threshold
     pos_new = SubhaloPos[index_sats[mcrit_sats > mbins[-1]]]
     vel_new = SubhaloVel[index_sats[mcrit_sats > mbins[-1]]]
@@ -815,32 +864,32 @@ for i_pair in range(len(secondaries)):
     # record all the information (pos, vel and halo inds of pred cent and sats) 
     if fit_type == 'plane':
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
     else:
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_fp_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
 

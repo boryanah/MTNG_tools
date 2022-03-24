@@ -1,7 +1,12 @@
+"""
+Compute the correlation function of prediction and true for different halo properties
+"""
 import os
 import sys
 
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import Corrfunc
 
@@ -16,30 +21,32 @@ greysafecols = ['#809BC8', '#FF6666', '#FFCC66', '#64C204']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
-fp_dm = 'fp'; snapshot = 179; snapshot_fp = 179;
-#fp_dm = 'dm'; snapshot = 184; snapshot_fp = 179;
+#fp_dm = 'fp'; snapshot = 179; snapshot_fp = 179;
+fp_dm = 'dm'; snapshot = 184; snapshot_fp = 179;
 Lbox = 500. # Mpc/h
-#gal_type = 'ELG'
-#gal_type = 'LRG'
-gal_type = sys.argv[1]
+gal_type = sys.argv[1] # 'LRG' # 'RLG'
 #n_gal = ['5.9e-04', '7.4e-04', '9.7e-04']
-#n_gal = '7.4e-04'
-#n_gal = '9.7e-04'
 n_gal = '2.0e-03'
-#fit_type = 'ramp'
-#fit_type = 'plane'
-fit_type = sys.argv[2]
+fit_type = sys.argv[2] # 'ramp' # 'plane'
 #fun_types = ['tanh', 'erf', 'gd', 'abs', 'arctan', 'linear']
-#fun_types = ['erf', 'linear'] # for mode all, I currently have only these two
-#fun_types = []
-fun_types = ['linear'] # TESTING
+fun_types = ['linear']
 fun_type_sats = 'linear'
-#mode = 'bins' # fitting in bins
-mode = 'all' # fitting once for all
+mode = 'all' #'all' # fitting once for all # 'bins' fitting in bins
+if len(sys.argv) > 3:
+    want_vrad = int(sys.argv[3])
+else:
+    want_vrad = False
+vrad_str = "_vrad" if want_vrad else ""
+vrad_lab = "radial_vel" if want_vrad else ""
+if len(sys.argv) > 4:
+    want_splash = int(sys.argv[4])
+else:
+    want_splash = False
+splash_str = "_splash" if want_splash else ""
+splash_lab = "splashback" if want_splash else ""
 
 params = ['GroupVirial', 'GroupConcRad', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']
 n_combos = len(params)*(len(params)-1)//2
-print("combos = ", n_combos)
 if 'ramp' == fit_type:
     secondaries = params.copy()
     tertiaries = ['None']
@@ -58,15 +65,19 @@ else:
                 tertiaries.append(params[i_param])
                 print(params[j_param], params[i_param])
 print("combos = ", len(secondaries))
-secondaries = ['GroupEnv_R2'] # TESTING
-#secondaries = ['GroupPotential']
-#secondaries = ['GroupVelDisp']
+secondaries = ['GroupEnv_R2']
+#secondaries = ['GroupGamma']
+#secondaries = ['GroupShear_R2']
 #secondaries = ['GroupConc']
-#secondaries = ['GroupVelDisp']
-#tertiaries = ['GroupEnv_R2']
-#tertiaries = ['GroupConcRad']
+#secondaries = ['GroupVelDispSqR']
+#secondaries = ['GroupVelAni']
+#secondaries = ['Group_M_Crit200_peak']
+#secondaries = ['GroupEnvAdapt']
+#secondaries = ['GroupHalfmassRad']
+#secondaries = ['GroupPotentialCen']
+#secondaries = ['GroupPotentialFoF']
+#secondaries = ['GroupPotential_TopHat200']
 tertiaries = ['GroupConc']
-#tertiaries = ['GroupShear_R2']
 
 # load other halo properties
 SubhaloPos = np.load(tng_dir+f'data_fp/SubhaloPos_fp_{snapshot_fp:d}.npy')
@@ -109,25 +120,25 @@ for i in range(len(fun_types)):
         print("param pair = ", i_pair, secondary, tertiary)
         # directory of ramp and plane
         if fit_type == 'plane':
-            print(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-            print(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+            print(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+            print(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
             if mode == 'bins':
-                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
             elif mode == 'all':
-                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
         else:
             if mode == 'bins':            
-                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
             elif mode == 'all':
-                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                ind_sats_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
+                ind_cent_pred = np.load(f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy")
 
 
         #pos_cent_pred = GroupPos[ind_cent_pred]
@@ -180,8 +191,6 @@ for i in range(len(fun_types)):
 
         # N_dim should maybe be 5
         rat_mean, rat_err, corr_shuff_mean, corr_shuff_err, corr_true_mean, corr_true_err, _ = get_jack_corr(pos_true, w_true, pos_pred, w_pred, Lbox, N_dim=3, bins=rbins)
-
-
         
         # remove
         # for testing quickly
@@ -190,31 +199,39 @@ for i in range(len(fun_types)):
         plt.errorbar(rbinc, corr_true_mean*rbinc**2, yerr=corr_true_err*rbinc**2, ls='-', capsize=4, color='black', label='True')
         plt.errorbar(rbinc, corr_shuff_mean*rbinc**2, yerr=corr_shuff_err*rbinc**2, ls='-', capsize=4, color='dodgerblue', label='Predicted')
         plt.xscale('log')
-        #plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
+        plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{snapshot:d}.png')
 
         plt.figure(figsize=(9, 7))
         plt.plot(rbinc, np.ones(len(rbinc)), 'k--')
         plt.errorbar(rbinc, rat_mean, yerr=rat_err, ls='-', capsize=4, color='dodgerblue', label='Predicted')
         plt.xscale('log')
-        #plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
+        plt.ylabel(r'$\xi_{\rm pred}(r)/\xi_{\rm true}(r)$')
+        plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
+        plt.ylim([0.8, 1.2])
+        text = f"{secondary:s}_{tertiary:s}_{vrad_lab:s}_{splash_lab:s}"
+        text = " ".join(text.split("_"))
+        plt.text(x=0.03, y=0.1, s=text, transform=plt.gca().transAxes)
+        
+        plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{snapshot:d}.png')
+        #plt.close()
         plt.show()
         quit()
         
 
         if fit_type == 'plane':
             if mode == 'bins':
-                np.save(f"{gal_type:s}/corr_rat_mean_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
-                np.save(f"{gal_type:s}/corr_rat_err_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
+                np.save(f"{gal_type:s}/corr_rat_mean_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
+                np.save(f"{gal_type:s}/corr_rat_err_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
             elif mode == 'all':
-                np.save(f"{gal_type:s}/corr_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
-                np.save(f"{gal_type:s}/corr_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
+                np.save(f"{gal_type:s}/corr_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
+                np.save(f"{gal_type:s}/corr_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
         else:
             if mode == 'bins':
-                np.save(f"{gal_type:s}/corr_rat_mean_{fit_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
-                np.save(f"{gal_type:s}/corr_rat_err_{fit_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
+                np.save(f"{gal_type:s}/corr_rat_mean_{fit_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
+                np.save(f"{gal_type:s}/corr_rat_err_{fit_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
             elif mode == 'all':
-                np.save(f"{gal_type:s}/corr_rat_mean_all_{fun_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
-                np.save(f"{gal_type:s}/corr_rat_err_all_{fun_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
+                np.save(f"{gal_type:s}/corr_rat_mean_all_{fun_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_mean)
+                np.save(f"{gal_type:s}/corr_rat_err_all_{fun_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{fp_dm:s}_{snapshot:d}.npy", rat_err)
 
 # mass bins  # notice slightly lower upper limit cause few halos
 mbins = np.logspace(10, 14, 41)
@@ -282,13 +299,13 @@ plt.plot(rbinc, np.ones(len(rbinc)), 'k--')
 plt.errorbar(rbinc, corr_true_mean*rbinc**2, yerr=corr_true_err*rbinc**2, ls='-', capsize=4, color='black', label='True')
 plt.errorbar(rbinc, corr_shuff_mean*rbinc**2, yerr=corr_shuff_err*rbinc**2, ls='-', capsize=4, color='dodgerblue', label='Predicted')
 plt.xscale('log')
-#plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
+#plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{snapshot:d}.png')
 
 plt.figure(figsize=(9, 7))
 plt.plot(rbinc, np.ones(len(rbinc)), 'k--')
 plt.errorbar(rbinc, rat_mean, yerr=rat_err, ls='-', capsize=4, color='dodgerblue', label='Predicted')
 plt.xscale('log')
-#plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}_{snapshot:d}.png')
+#plt.savefig(f'figs/corr_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{snapshot:d}.png')
 plt.show()
 quit()
 '''

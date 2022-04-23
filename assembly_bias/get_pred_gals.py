@@ -12,7 +12,8 @@ from scipy.optimize import minimize
 from scipy import special
 from scipy.interpolate import interp1d
 
-from pseudo_poisson import pseudo_poisson
+from tools import draw_pseudo, vrange
+
 
 zs = [0., 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0]
 snaps = [264, 237, 214, 179, 151, 129, 94, 80, 69, 51]
@@ -30,28 +31,31 @@ fit_type = sys.argv[2] # 'ramp' # 'plane'
 fun_cent = 'linear' # 'tanh' # 'erf' # 'gd' # 'abs' # 'arctan'
 fun_sats = 'linear'
 method = 'powell' # 'Nelder-Mead'
-want_pseudo_poisson = True # currently only turned on for ELGs
 mode = 'all'#'all', 'bins'
 sat_type = 'subhalos' #'subsamp' #'subhalos' #'subsamp' #'subhalos' # 'subsamp' 
 fp_dm = 'fp'
 p0 = np.array([0., 0.]) 
 Lbox = 500.
-if len(sys.argv) > 3:
-    want_vrad = int(sys.argv[3])
+if gal_type == 'ELG':
+    want_drad = True
 else:
-    want_vrad = False
+    want_drad = False
+drad_str = "_drad" if want_drad else ""
+want_pseudo = False
+pseudo_str = "_pseudo" if want_pseudo else ""
+want_vrad = False
 vrad_str = "_vrad" if want_vrad else ""
-if len(sys.argv) > 4:
-    want_splash = int(sys.argv[4])
-else:
-    want_splash = False
+want_fixocc = False
+fixocc_str = "_fixocc" if want_fixocc else ""
+want_splash = False
 splash_str = "_splash" if want_splash else ""
-if len(sys.argv) > 5:
-    n_gal = sys.argv[5]
+want_condprob = True # make part of infrastructure
+if len(sys.argv) > 3:
+    n_gal = sys.argv[3]
 else:
     n_gal = '2.0e-03' # '7.0e-04'
-if len(sys.argv) > 6:
-    snapshot = int(sys.argv[6])
+if len(sys.argv) > 4:
+    snapshot = int(sys.argv[4])
     if fp_dm == 'dm':
         offset = 5
     elif fp_dm == 'fp':
@@ -66,7 +70,14 @@ else:
         offset = 0
     snapshot_dm = snapshot + offset
     redshift = 1.
-print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{fp_dm}_{snapshot:d}_{n_gal}")
+print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{fixocc_str}_{fp_dm}_{snapshot:d}_{n_gal}")
+
+def angle(a, b, c):
+    res = (c**2 - b**2 - a**2)/(-2.0 * a * b)
+    res = np.arccos(res)
+    res = np.nan_to_num(res)
+    #if np.isnan(res): print("a, b, c, angle = ", a, b, c, res); return 0.
+    return res
 
 def downsample_counts(GroupCount, GroupCountPred):
     GroupCountCopy = GroupCount.copy()
@@ -175,31 +186,54 @@ def prob_linear_sats(a, b):
     p = (1. + a*x[choice] + b*y[choice]) * cts_sats_mean[choice]
     return p
 
+# WORKS AS LONG AS YOU DON'T ADD MORE THAN ONE REPEATED QUANTITY
+new_params = ['GroupVelAni', 'SubhaloMass_peak']
 #params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupEnv_R1.5', 'GroupShear_R1.5', 'GroupConcRad', 'GroupVirial', 'GroupSnap_peak', 'GroupVelDisp', 'GroupPotential', 'Group_M_Splash', 'Group_R_Splash', 'GroupNsubs', 'GroupSnap_peak', 'GroupMarkedEnv_R2.0_s0.25_p2', 'GroupHalfmassRad']
 params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupNsubs']
-params = []
+#params = []
 n_combos = len(params)*(len(params)-1)//2
 if 'ramp' == fit_type:
     secondaries = params.copy()
     tertiaries = ['None']
+    
+    if len(new_params) > 0:
+        secondaries = new_params.copy()
+    print(secondaries)
 else:
     secondaries = []
     tertiaries = []
-    for i_param in range(len(params)):
-        for j_param in range(len(params)):
-            if i_param <= j_param: continue
-            if params[i_param] < params[j_param]:
-                secondaries.append(params[i_param])
-                tertiaries.append(params[j_param])
-                print(params[i_param], params[j_param])
-            else:
-                secondaries.append(params[j_param])
-                tertiaries.append(params[i_param])
-                print(params[j_param], params[i_param])
+
+    if len(new_params) > 0:
+        for i_param in range(len(params)):
+            for j_param in range(len(new_params)):
+                if params[i_param] == new_params[j_param]: continue
+
+                if params[i_param] < new_params[j_param]:
+                    secondaries.append(params[i_param])
+                    tertiaries.append(new_params[j_param])
+                    print(params[i_param], new_params[j_param])
+                else:
+                    secondaries.append(new_params[j_param])
+                    tertiaries.append(params[i_param])
+                    print(new_params[j_param], params[i_param])
+    else:
+        for i_param in range(len(params)):
+            for j_param in range(len(params)):
+                if i_param <= j_param: continue
+
+                if params[i_param] < params[j_param]:
+                    secondaries.append(params[i_param])
+                    tertiaries.append(params[j_param])
+                    print(params[i_param], params[j_param])
+                else:
+                    secondaries.append(params[j_param])
+                    tertiaries.append(params[i_param])
+                    print(params[j_param], params[i_param])
 print("combos = ", len(secondaries))
 if fit_type == 'ramp':
     secondaries.append('None')
 
+    
 if fun_cent == 'linear':
     prob_cent = prob_linear_cent
 elif fun_cent == 'erf':
@@ -218,22 +252,20 @@ if fun_sats == 'linear':
 # load other halo properties
 SubhaloGrNr = np.load(tng_dir+f'data_{fp_dm}/SubhaloGroupNr_{fp_dm}_{snapshot:d}.npy')
 SubhaloPos = np.load(tng_dir+f"data_{fp_dm}/SubhaloPos_{fp_dm}_{snapshot:d}.npy")
-SubhaloVel = np.load(tng_dir+f"data_{fp_dm}/SubhaloVel_{fp_dm}_{snapshot:d}.npy")
+SubhaloVel = np.load(tng_dir+f"data_{fp_dm}/SubhaloVel_{fp_dm}_{snapshot:d}.npy") # peculiar velocity
 GroupPos = np.load(tng_dir+f'data_{fp_dm}/GroupPos_{fp_dm}_{snapshot:d}.npy')
 GroupVel = np.load(tng_dir+f'data_{fp_dm}/GroupVel_{fp_dm}_{snapshot:d}.npy')*(1.+redshift) # peculiar velocity
 GroupVelDisp = np.load(tng_dir+f'data_{fp_dm}/GroupVelDisp_{fp_dm}_{snapshot:d}.npy') # 1D velocity dispersion
 GroupVelDisp *= np.sqrt(3.) # should make it 3D
 GroupFirstSub = np.load(tng_dir+f'data_{fp_dm}/GroupFirstSub_{fp_dm}_{snapshot:d}.npy')
-# TESTING!!!!!!!!!!
-#GroupPos = SubhaloPos[GroupFirstSub]
 GroupNsubs = np.load(tng_dir+f'data_{fp_dm}/GroupNsubs_{fp_dm}_{snapshot:d}.npy')
 if want_splash:
     GrMcrit = np.load(tng_dir+f'data_{fp_dm}/Group_M_Splash_{fp_dm}_{snapshot:d}.npy')
 else:
     GrMcrit = np.load(tng_dir+f'data_{fp_dm}/Group_M_TopHat200_{fp_dm}_{snapshot:d}.npy')*1.e10
 Group_M_Crit200 = np.load(tng_dir+f'data_{fp_dm}/Group_M_Crit200_{fp_dm}_{snapshot:d}.npy')
-#GrRcrit = np.load(tng_dir+f'data_{fp_dm}/Group_R_TopHat200_{fp_dm}_{snapshot:d}.npy')
-GrRcrit = np.ones_like(GrMcrit) # TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+GrRcrit = np.load(tng_dir+f'data_{fp_dm}/Group_R_TopHat200_{fp_dm}_{snapshot:d}.npy')
+#GrRcrit = np.ones_like(GrMcrit) # (TESTING)
 index_halo = np.arange(len(GrMcrit), dtype=int)
 
 # load galaxy sample info
@@ -280,7 +312,6 @@ else:
 
 print(f"minimum halo mass with any counts = {np.min(GrMcrit[GroupCount > 0]):.2e}")
 
-    
 if sat_type == 'subsamp':
     # load particle subsamples for some halos
     
@@ -305,16 +336,88 @@ rcrit_sats = GrRcrit[parent_sats]
 print(f"mcrit_sats = {mcrit_sats.min():.2e}, {mcrit_sats.max():.2e}")
 vcrit_sats = GroupVelDisp[parent_sats]
 xdiff_sats = SubhaloPos[index_sats]-GroupPos[parent_sats]
-vdiff_sats = SubhaloVel[index_sats]-GroupVel[parent_sats]
 xdiff_sats[xdiff_sats > Lbox/2.] -= Lbox
 xdiff_sats[xdiff_sats < -Lbox/2.] += Lbox
+vdiff_sats = SubhaloVel[index_sats]-GroupVel[parent_sats]
+_, ind_sats, ct_sats = np.unique(parent_sats, return_index=True, return_counts=True) # unique indices of parents of satellites 
+sdiff_sats = SubhaloPos[index_sats]-np.repeat((SubhaloPos[index_sats])[ind_sats], ct_sats, axis=0) # find distance between sats and first sat (assume index_sats are ordered by halo group)
+sdiff_sats[sdiff_sats > Lbox/2.] -= Lbox
+sdiff_sats[sdiff_sats < -Lbox/2.] += Lbox
 sbdnm_sats = np.linalg.norm(xdiff_sats, axis=1)
 sbvnm_sats = np.linalg.norm(vdiff_sats, axis=1)
+sbdrnm_sats = np.linalg.norm(sdiff_sats, axis=1)
 hat_r_sats = xdiff_sats/sbdnm_sats[:, None]
 v_rad_sats = np.sum(vdiff_sats*hat_r_sats, axis=1)/sbvnm_sats
 v_rad_sats = np.nan_to_num(v_rad_sats)
 assert len(v_rad_sats) == len(mcrit_sats)
+print("min and max count = ", ct_sats.min(), ct_sats.max())
+
+# assert that indices of galaxies are ordered by
+assert np.sum(np.abs(np.sort(parent_sats)-parent_sats)) == 0
+
+plot_angle = False
+if plot_angle:
+    par_sats = parent_sats[ind_sats]
+    grp_sats = GroupPos[par_sats]
+    grp_sats = np.repeat(grp_sats, ct_sats, axis=0)
+    stp_sats = (SubhaloPos[index_sats])[vrange(ind_sats, ct_sats)]
+    s1p_sats = ((SubhaloPos[index_sats])[ind_sats])
+    s1p_sats = np.repeat(s1p_sats, ct_sats, axis=0)
+
+    # distance between satellites and center
+    sdiff = stp_sats-grp_sats
+    sdiff[sdiff > Lbox/2.] -= Lbox
+    sdiff[sdiff < -Lbox/2.] += Lbox
+    r_st = np.linalg.norm(sdiff, axis=1)
+    print("min/max r sc = ", r_st.min(), r_st.max())
+
+    # distance between first satellite and center
+    sdiff = s1p_sats-grp_sats
+    sdiff[sdiff > Lbox/2.] -= Lbox
+    sdiff[sdiff < -Lbox/2.] += Lbox
+    r_s1 = np.linalg.norm(sdiff, axis=1)
+    print("min/max r fc = ", r_s1.min(), r_s1.max())
+
+    # distance between first satellite and satellites
+    sdiff = s1p_sats-stp_sats
+    sdiff[sdiff > Lbox/2.] -= Lbox
+    sdiff[sdiff < -Lbox/2.] += Lbox
+    r_ss = np.linalg.norm(sdiff, axis=1)
+    print("min/max r sf = ", r_ss.min(), r_ss.max())
+
+    ang = angle(r_st, r_s1, r_ss) # radians
+    #sbdrnm_sats[:] = ang
+
+    """
+    ang *= 180./np.pi # degrees
+    r_ss = r_ss[ang < 30]
+    bins = np.linspace(r_ss.min(), r_ss.max(), 101)
+    binc = (bins[1:]+bins[:-1])*.5
+    hist, _ = np.histogram(r_ss, bins=bins)
+    plt.plot(binc, hist, label='angle wrt 1st sat')
+    plt.legend()
+    plt.show()
+    plt.show()
+    quit()
+    """
     
+    ch = r_ss > 0.
+    ang = ang[ch]*180./np.pi
+    bins = np.linspace(ang.min(), ang.max(), 101)
+    binc = (bins[1:]+bins[:-1])*.5
+    hist, _ = np.histogram(ang, bins=bins)
+    ang = np.arccos(2.*np.random.rand(np.sum(ch))-1.)*180./np.pi
+    hist_rand, _ = np.histogram(ang, bins=bins)
+    np.savez(f"data/{gal_type}_angle.npz", hist_ang=hist, hist_rand=hist_rand, binc=binc)
+    plt.plot(binc, hist, label='angle wrt 1st sat')
+    plt.plot(binc, hist_rand, label='random draw')
+    plt.legend()
+    plt.title(f"{gal_type}")
+    plt.xlim([0., 180.])
+    plt.savefig(f"{gal_type}_angle.png")
+    plt.show()
+    quit()
+
 print("max_dist = ", sbdnm_sats.max()) # 7.9 Mpc/h
 print("min_dist =", sbdnm_sats.min()) # 0.0 Mpc/h probably sometimes there is a larger subhalo that's not first just cause it's not where the min of the potential is?
 print("min_dist (no zeros) =", sbdnm_sats[sbdnm_sats > 0.].min()) # 7.e-6 Mpc/h 
@@ -322,6 +425,7 @@ sbdnm_sats /= rcrit_sats # no NaNs
 sbvnm_sats /= vcrit_sats # no NaNs
 print("v dist = ", sbvnm_sats.min(), sbvnm_sats.max())
 print("d dist = ", sbdnm_sats.min(), sbdnm_sats.max())
+print("dr dist = ", sbdrnm_sats.min(), sbdrnm_sats.max())
 print("vr dist = ", v_rad_sats.min(), v_rad_sats.max())
 
 # define radial and velocity bins
@@ -336,20 +440,28 @@ else:
     many_vs = np.linspace(0., 3., 1000)
 
     #rbins = np.logspace(-3, 1., 61) # og
-    #rbins = np.logspace(-3, 1., 10000) # og
-    #many_rs = np.logspace(-3, 1., 10000) # og
-    rbins = np.geomspace(sbdnm_sats.min()*0.99999, 10., 91) # TESTING!!!!!!!!!!!!!!!
-    #rbins[0] = 0. # TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    many_rs = np.geomspace(sbdnm_sats.min()*0.99999, 10., 1000)
-    #many_rs = np.logspace(-5, 1., 1000) # TESTING!!!!!!!!!!!!!!!!!!!
+    rbins = np.geomspace(np.min(sbdnm_sats[sbdnm_sats > 0.])*(1-1e-6), 10., 91)
+    many_rs = np.geomspace(rbins[0], rbins[-1], 1000)
 vrbins = np.linspace(-1.3, 1.3, 41)
 many_vrs = np.linspace(-1., 1., 100)
+drbins = np.geomspace(np.min(sbdrnm_sats[sbdrnm_sats > 0.])*(1-1e-6), np.max(sbdrnm_sats)*(1+1e-6), 91)
+many_drs = np.geomspace(drbins[0], drbins[-1], 1000)
 rbinc = (rbins[1:] + rbins[:-1])*0.5
 vbinc = (vbins[1:] + vbins[:-1])*0.5
-vrbinc = (vrbins[1:]+vrbins[:-1])*.5
-
+drbinc = (drbins[1:] + drbins[:-1])*0.5
+vrbinc = (vrbins[1:] + vrbins[:-1])*.5
 
 """
+hist_sats, _ = np.histogram(sbdrnm_sats, bins=drbins)
+p_sats = hist_sats/np.sum(hist_sats)
+plt.plot(drbinc, hist_sats, label='sats')
+plt.legend()
+plt.xscale('log')
+plt.xlim([1.e-5, 10])
+plt.title(f"{gal_type}")
+plt.savefig(f"{gal_type}_dr.png")
+plt.show()
+
 hist_sats, _ = np.histogram(sbdnm_sats, bins=rbins)
 p_sats = hist_sats/np.sum(hist_sats)
 plt.plot(rbinc, hist_sats, label='sats')
@@ -513,53 +625,88 @@ for i_pair in range(len(secondaries)):
     GroupCountCentPred[GroupCountCentPred > 1.] = 1.
     GroupCountCentPred[GroupCountCentPred < 0.] = 0.
 
-    # TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! tuks (and comment out until l. 550) (can play with bin size)
-    GroupCountSatsPred = GroupCountSats.copy()
-    GroupCountCentPred = GroupCountCent.copy()
-
-    """
-    # draw from a poisson and a binomial distribution for the halos in the mass range of interest
-    choice = (mbins[-1] >= GrMcrit) & (mbins[0] < GrMcrit)
-    if want_pseudo_poisson and gal_type == 'ELG':
-        #choice &= (GroupCountSatsPred > 1.e-6)
-        choice_poisson = choice & (GrMcrit <= 1.e13)
-        GroupCountSatsPred[choice_poisson] = np.random.poisson(GroupCountSatsPred[choice_poisson], len(GroupCountSatsPred[choice_poisson]))
-        choice_pseudo = choice & (GrMcrit > 1.e13)
-        count_sats = GroupCountSatsPred[choice_pseudo]
-        alpha = 0.8 # should be different
-        tmp = np.zeros(len(count_sats))
-        print("maximum satellites = ", np.max(count_sats))
-        for i_c in range(len(count_sats)):
-            #if count_sats[i_c] < 1.e-4: continue
-            # maximum satellites we can give to this halo
-            if i_c%10000 == 0: print(i_c, len(count_sats))
-            n_max = count_sats[i_c] #np.max(GroupCountSatsPred[choice])
-            n_max = int(n_max+10.*np.sqrt(n_max))
-            n_max = np.max([n_max, 1])
-            #if n_max == 0: print("too tiny = ", count_sats[i_c]); continue
-            #print("pseudo poisson n_max = ", n_max)
-            ints = np.arange(0, n_max+1)
-            ps = pseudo_poisson(ints, alpha, count_sats[i_c])
-            ps /= np.sum(ps)
-            tmp[i_c] = np.random.choice(ints, p=ps)
-        GroupCountSatsPred[choice_pseudo] = tmp
-    else:
-        GroupCountSatsPred[choice] = np.random.poisson(GroupCountSatsPred[choice], len(GroupCountSatsPred[choice]))
-    GroupCountCentPred = (np.random.rand(len(GroupCountCentPred)) < GroupCountCentPred)
-    GroupCountSatsPred = GroupCountSatsPred.astype(int)
-    GroupCountCentPred = GroupCountCentPred.astype(int)
-    print("pred poisson satellites = ", np.sum(GroupCountSatsPred), np.sum(GroupCountSats))
-    print("pred binomial centrals = ", np.sum(GroupCountCentPred), np.sum(GroupCountCent))
-    print("-------------------")
+    # TESTING for new!
+    GroupCountSatsPredCopy = GroupCountSatsPred.copy()
     
-    # downsample the galaxies in order for the pred to have the same number of satellites and centrals as the truth
-    GroupCountCentCopy = GroupCountCent.copy()
-    GroupCountSatsCopy = GroupCountSats.copy()
-    GroupCountCentCopy[choice], GroupCountCentPred[choice] = downsample_counts(GroupCountCent[choice], GroupCountCentPred[choice])
-    GroupCountSatsCopy[choice], GroupCountSatsPred[choice] = downsample_counts(GroupCountSats[choice], GroupCountSatsPred[choice])
-    GroupCountSatsPred = GroupCountSatsPred.astype(int)
-    GroupCountCentPred = GroupCountCentPred.astype(int)
-    """
+    # count pred = count true (see assertion comment below) (TESTING) (and comment out until l. 640) (can play with bin size)
+    if want_fixocc:
+        GroupCountSatsPred = GroupCountSats.copy()
+        GroupCountCentPred = GroupCountCent.copy()
+    else:    
+        # draw from a (pseudo-)poisson and a binomial distribution for the halos in the mass range of interest
+        choice = (mbins[-1] >= GrMcrit) & (mbins[0] < GrMcrit)
+        if want_pseudo:
+
+            data_hod = np.load(f"../hod/data/hod_{n_gal}_{gal_type}_{snapshot:d}.npz")
+            hod_mbinc = data_hod['mbinc']
+            hod_std = data_hod['std']
+            hod_poisson = data_hod['poisson']
+            hod_alpha = (hod_poisson/hod_std)**2
+            hod_alpha[np.isnan(hod_alpha)] = 1.
+            mbinc_min = hod_mbinc[np.argmax(hod_alpha < 0.9)] # first instance where it dips below 0.9
+            alpha = np.mean(hod_alpha[(mbinc_min <= hod_mbinc) & (hod_mbinc < mbins[-1])])
+            #alpha = 0.8 # should be different
+            print("alpha = ", alpha)
+            print(f"mbinc_min = {mbinc_min:.2e}")
+
+            choice_poisson = choice & (GrMcrit <= mbinc_min)
+            GroupCountSatsPred[choice_poisson] = np.random.poisson(GroupCountSatsPred[choice_poisson], len(GroupCountSatsPred[choice_poisson]))
+
+            choice_pseudo = choice & (GrMcrit > mbinc_min) #1.e13)
+            count_sats = GroupCountSatsPred[choice_pseudo]
+            tmp = np.zeros(len(count_sats))
+            print("maximum satellites = ", np.max(count_sats))
+            for i_c in range(len(count_sats)):
+                #if count_sats[i_c] < 1.e-4: continue
+                # maximum satellites we can give to this halo
+                if i_c%10000 == 0: print(i_c, len(count_sats))
+                n_max = count_sats[i_c] #np.max(GroupCountSatsPred[choice])
+                n_max = int(n_max+10.*np.sqrt(n_max))
+                n_max = np.max([n_max, 1])
+                #if n_max == 0: print("too tiny = ", count_sats[i_c]); continue
+                #print("pseudo poisson n_max = ", n_max)
+                ints = np.arange(0, n_max+1)
+                ps = draw_pseudo(ints, alpha, count_sats[i_c])
+                ps /= np.sum(ps)
+                tmp[i_c] = np.random.choice(ints, p=ps)
+            GroupCountSatsPred[choice_pseudo] = tmp
+        else:
+            GroupCountSatsPred[choice] = np.random.poisson(GroupCountSatsPred[choice], len(GroupCountSatsPred[choice]))
+        
+        if want_condprob:
+            #A: 1 cent, B: >0 sat
+            #P(1 cent|>0 sat) = P(A|B) equiv k P(A) = k P(1 cent) # where k roughly 2
+            #P(1 cent|0 sat) = P(A|~B) = [P(A)/P(B)-P(A|B)]*[P(B)/(1-P(B))] # exact
+            choice_anysat = GroupCountSatsPred > 0
+            # for P(A|B)
+            k = 2 # roughly
+            prob_A_given_B = k*GroupCountCentPred[choice_anysat] # k*prob_A
+            # for P(A|notB)
+            prob_A = GroupCountCentPred[~choice_anysat]
+            prob_B = GroupCountSatsPredCopy[~choice_anysat] # pre-poisson draw
+            prob_A_given_notB = (1.+(1.-k)/(1./prob_B-1.))*prob_A
+            GroupCountCentPred[choice_anysat] = (np.random.rand(np.sum(choice_anysat)) < prob_A_given_B)
+            GroupCountCentPred[~choice_anysat] = (np.random.rand(np.sum(~choice_anysat)) < prob_A_given_notB)
+        else:
+            GroupCountCentPred = (np.random.rand(len(GroupCountCentPred)) < GroupCountCentPred)
+        GroupCountSatsPred = GroupCountSatsPred.astype(int)
+        GroupCountCentPred = GroupCountCentPred.astype(int)
+        print("pred poisson satellites = ", np.sum(GroupCountSatsPred), np.sum(GroupCountSats))
+        print("pred binomial centrals = ", np.sum(GroupCountCentPred), np.sum(GroupCountCent))
+        print("-------------------")
+
+        # downsample the galaxies in order for the pred to have the same number of satellites and centrals as the truth
+        GroupCountCentCopy = GroupCountCent.copy()
+        GroupCountSatsCopy = GroupCountSats.copy()
+        GroupCountCentCopy[choice], GroupCountCentPred[choice] = downsample_counts(GroupCountCent[choice], GroupCountCentPred[choice])
+        GroupCountSatsCopy[choice], GroupCountSatsPred[choice] = downsample_counts(GroupCountSats[choice], GroupCountSatsPred[choice])
+        GroupCountSatsPred = GroupCountSatsPred.astype(int)
+        GroupCountCentPred = GroupCountCentPred.astype(int)
+
+    
+    # initialize angles for satellites
+    GroupThetas = np.arccos(2.*np.random.rand(len(GrMcrit))-1.)
+    GroupPhis = np.random.rand(len(GrMcrit))*2.*np.pi
     
     # initialize arrays for storing the satellite info
     pos_pred_sats = np.zeros((np.sum(GroupCountSatsPred), 3))
@@ -589,6 +736,8 @@ for i_pair in range(len(secondaries)):
         env = GroupEnv[mchoice]
         conc = GroupConc[mchoice]
         pos = GroupPos[mchoice]
+        th = GroupThetas[mchoice]
+        ph = GroupPhis[mchoice]
         vel = GroupVel[mchoice]
         rcrit = GrRcrit[mchoice]
         vcrit = GroupVelDisp[mchoice]
@@ -603,16 +752,19 @@ for i_pair in range(len(secondaries)):
         # select the true satellites in mass bin (needed for drawing from radial distn)
         choice_sats = ((mbins[i]) < mcrit_sats) & ((mbins[i+1]) >= mcrit_sats)
 
-        # TESTING!!!!!!!!!!!!!!!!!!! only true because we are cheating
+        """
+        # assertion when setting count pred = count true
         print("count stats (min, max, mean, med) = ", np.min(cts_sats_pred), np.max(cts_sats_pred), np.mean(cts_sats_pred), np.median(cts_sats_pred))
         print("predicted number of satellites vs true = ", np.sum(cts_sats_pred), np.sum(choice_sats))
         assert np.sum(cts_sats_pred) == np.sum(choice_sats)
+        """
         
         # select sec and tert prop of the satellite hosts and norm dist/vel to center
         conc_ms = conc_sats[choice_sats]
         env_ms = env_sats[choice_sats]
         sbdnm_ms = sbdnm_sats[choice_sats]
         sbvnm_ms = sbvnm_sats[choice_sats]
+        sbdrnm_ms = sbdrnm_sats[choice_sats]
         sbvrnm_ms = v_rad_sats[choice_sats]
 
         # compute histogram of satellite dist/vel to center (needed only if no true sats at sec and tert prop)
@@ -620,6 +772,11 @@ for i_pair in range(len(secondaries)):
         p_sats = hist_sats/np.sum(hist_sats)
         hist_sats, _ = np.histogram(sbvnm_ms, bins=vbins)
         v_sats = hist_sats/np.sum(hist_sats)
+        hist_sats, _ = np.histogram(sbdrnm_ms, bins=drbins)
+        if np.sum(hist_sats) == 0: # sometimes empty
+            hist_sats[0] = 1.
+        dr_sats = hist_sats/np.sum(hist_sats)
+        dr_sats = np.nan_to_num(dr_sats)
         hist_sats, _ = np.histogram(sbvrnm_ms, bins=vrbins)
         vr_sats = hist_sats/np.sum(hist_sats)
         
@@ -674,40 +831,44 @@ for i_pair in range(len(secondaries)):
                 if np.sum(rchoice_ms) == 0:
                     radius = np.random.choice(rbinc, ng, p=p_sats)
                     velius = np.random.choice(vbinc, ng, p=v_sats)
+                    dradius = np.random.choice(drbinc, ng, p=dr_sats)
                     velrad = np.random.choice(vrbinc, ng, p=vr_sats)
                     no_true_sats += ng
                 else:
                     # otherwise compute the true rad and disp distn at this bin
                     hist_r, _ = np.histogram(sbdnm_ms[rchoice_ms], bins=rbins)
                     hist_v, _ = np.histogram(sbvnm_ms[rchoice_ms], bins=vbins)
+                    hist_dr, _ = np.histogram(sbdrnm_ms[rchoice_ms], bins=drbins)
                     hist_vr, _ = np.histogram(sbvrnm_ms[rchoice_ms], bins=vrbins)
-
-                    # TESTING!!!!!!!!!!!!!!!!
-                    print("expected galaxies vs true galaxies = ", ng, np.sum(rchoice_ms))
-                    assert ng == np.sum(rchoice_ms)
                     
                     assert np.sum(hist_r) > 0 # assert we do have some objects in the rad bins
                     assert np.sum(hist_v) > 0 # assert we do have some objects in the disp bins
+                    if np.sum(hist_dr) == 0: # if we don't have objects (since sometimes there is only one satellite)
+                        hist_dr[0] = np.sum(hist_r) # ascribe to first drbin
+                    assert np.sum(hist_dr) > 0 # assert we do have some objects in the drad bins
                     assert np.sum(hist_vr) > 0 # assert we do have some objects in the vrad bins
                     
                     # if there is only one radial bin with information, just take whatever you are offered (can't interpolate with 1 point)
-                    if np.sum(hist_r > 0.) == 1 or np.sum(hist_v > 0.) == 1 or np.sum(hist_vr > 0.) == 1:
+                    if np.sum(hist_r > 0.) == 1 or np.sum(hist_v > 0.) == 1 or np.sum(hist_dr > 0.) == 1 or np.sum(hist_vr > 0.) == 1:
                         pr = hist_r/np.sum(hist_r)
                         radius = np.random.choice(rbinc, ng, p=pr)
                         pv = hist_v/np.sum(hist_v)
                         velius = np.random.choice(vbinc, ng, p=pv)
+                        pdr = hist_dr/np.sum(hist_dr)
+                        dradius = np.random.choice(drbinc, ng, p=pdr)
                         pvr = hist_vr/np.sum(hist_vr)
                         velrad = np.random.choice(vrbinc, ng, p=pvr)
                     else:
                         # interpolate to get the rad and disp distn (must have two points for each)
                         pr = interp1d(rbinc[hist_r > 0.], hist_r[hist_r > 0.], bounds_error=False, fill_value=0.)(many_rs) # og
-                        pr /= np.sum(pr) # og
-                        radius = np.random.choice(many_rs, ng, p=pr) # og
-                        #pr = hist_r/np.sum(hist_r) # TESTING
-                        #radius = np.random.choice(rbinc, ng, p=pr) # TESTING
+                        pr /= np.sum(pr) 
+                        radius = np.random.choice(many_rs, ng, p=pr) 
                         pv = interp1d(vbinc[hist_v > 0.], hist_v[hist_v > 0.], bounds_error=False, fill_value=0.)(many_vs)
                         pv /= np.sum(pv)
                         velius = np.random.choice(many_vs, ng, p=pv)
+                        pdr = interp1d(drbinc[hist_dr > 0.], hist_dr[hist_dr > 0.], bounds_error=False, fill_value=0.)(many_drs)
+                        pdr /= np.sum(pdr)
+                        dradius = np.random.choice(many_drs, ng, p=pdr) 
                         pvr = interp1d(vrbinc[hist_vr > 0.], hist_vr[hist_vr > 0.], bounds_error=False, fill_value=0.)(many_vrs)
                         pvr /= np.sum(pvr)
                         velrad = np.random.choice(many_vrs, ng, p=pvr)
@@ -730,6 +891,7 @@ for i_pair in range(len(secondaries)):
                     # scale the predicted `radii` and `velii` by halo rad and disp 
                     radii = radius[st[n]:st[n]+ct[n]] * rcr[n]
                     velii = velius[st[n]:st[n]+ct[n]] * vcr[n]
+                    dradii = dradius[st[n]:st[n]+ct[n]] * rcr[n]
                     vradii = velrad[st[n]:st[n]+ct[n]]  # number between -1 and 1
                     
                     # select pos and vel of subhalos/pcles in this halo
@@ -741,7 +903,7 @@ for i_pair in range(len(secondaries)):
                         vels = PartSubsampVel[start[n]:start[n]+npout[n]]
                         if npout[n] == 0:
                             #print(f"eh empty {ct[n]:d} {GrMcrit[mchoice][rchoice][n]:.2e}");
-                            poses = np.zeros((2,3)); vels = np.zeros((2,3)); # tuks
+                            poses = np.zeros((2,3)); vels = np.zeros((2,3)); # (TESTING)
                     
                     # compute distance to halo center of subhalos/pcles
                     diffs = poses - pos[rchoice][n] # pos[rchoice][n], SubhaloPos[start[n]]: same
@@ -759,13 +921,60 @@ for i_pair in range(len(secondaries)):
                         # if we are far from any subhalos at the pred rad
                         if True: #False: #dist_min > .5: #True: #dist_min > .1: # (TESTING) # very bad to do False for some reason
                             # draw random 3d position
-                            theta = np.arccos(2.*np.random.rand()-1.)
-                            phi = np.random.rand()*2.*np.pi
-                            x = np.cos(phi)*np.sin(theta)
-                            y = np.sin(phi)*np.sin(theta)
-                            z = np.cos(theta)
-                            p = radii[m]*np.array([x, y, z])
-                            
+                            # definition of north for this halo
+                            if want_drad:
+                                theta = th[rchoice][n]
+                                phi = ph[rchoice][n]
+                                if m == 0: # first satellite in this halo
+                                    x = np.cos(phi)*np.sin(theta)
+                                    y = np.sin(phi)*np.sin(theta)
+                                    z = np.cos(theta)
+                                    p = radii[m]*np.array([x, y, z])
+                                else:
+                                    # let's take the radius of the first satellite
+                                    #dangle = angle(radii[m-1], radii[m], dradii[m]) # og, but leads to unphysical triangles
+                                    #rangle = np.random.rand()*2.np.pi
+                                    """
+                                    # doesn't change the clustering sufficiently
+                                    dangle = dradii[m] 
+                                    dtheta = dangle
+                                    dphi = 0.
+                                    x = np.cos(phi+dphi)*np.sin(theta+dtheta)
+                                    y = np.sin(phi+dphi)*np.sin(theta+dtheta)
+                                    z = np.cos(theta+dtheta)
+                                    p = radii[m]*np.array([x, y, z])
+                                    """
+                                    if snapshot == 179:
+                                        X = 0.45
+                                    elif snapshot == 264:
+                                        X = 0.55
+                                    congenital = np.random.rand() > X #0.6 # 264: 0.6/0.7 179: 0.5/0.6
+                                    if congenital:
+                                        theta = np.arccos(2.*np.random.rand()-1.)
+                                        phi = np.random.rand()*2.*np.pi
+                                        x = np.cos(phi)*np.sin(theta)
+                                        y = np.sin(phi)*np.sin(theta)
+                                        z = np.cos(theta)
+                                        # gaussian draw
+                                        dradii[m] = np.max([0., (0.1 * np.random.randn() + 0.1)])
+                                        p = dradii[m]*np.array([x, y, z])
+                                        p = pos_pred_sats[sum_sats-1] - pos[rchoice][n] + p
+                                    else:
+                                        theta = np.arccos(2.*np.random.rand()-1.)
+                                        phi = np.random.rand()*2.*np.pi
+                                        x = np.cos(phi)*np.sin(theta)
+                                        y = np.sin(phi)*np.sin(theta)
+                                        z = np.cos(theta)
+                                        p = radii[m]*np.array([x, y, z])
+                                        
+                            else:
+                                theta = np.arccos(2.*np.random.rand()-1.)
+                                phi = np.random.rand()*2.*np.pi
+                                x = np.cos(phi)*np.sin(theta)
+                                y = np.sin(phi)*np.sin(theta)
+                                z = np.cos(theta)
+                                p = radii[m]*np.array([x, y, z])
+                                
                             # add the offset from the center
                             pos_pred_sats[sum_sats] = p + pos[rchoice][n] #pos[rchoice][n], SubhaloPos[start[n]] # shouldn't matter
 
@@ -810,7 +1019,7 @@ for i_pair in range(len(secondaries)):
 
                 # passed with flying colors for random vector assignment of pos and vel
 
-                if np.log10(mbinc[i]) > 16.: # TESTING 
+                if np.log10(mbinc[i]) > 16.: # 16. (TESTING)
                     print(f"mass bin = {mbinc[i]:.2e}")
                     
                     # plot rad and disp distn in this bin of mass, c and e 
@@ -822,11 +1031,12 @@ for i_pair in range(len(secondaries)):
                     hist_pred, _ = np.histogram(diff, bins=vbins)
                     hist_true, _ = np.histogram(sbvnm_ms[rchoice_ms], bins=vbins)
 
-                    plt.figure(1)
+                    plt.figure(2)
                     plt.axvline(x=np.sqrt(1.), ls='--', color='black', zorder=0)
                     plt.plot(vbinc, hist_true, ls='-', color='red', lw=2, label='true')
                     plt.plot(vbinc, hist_pred, ls='-', color='blue', lw=2, label='pred')
                     #plt.xscale('log')
+                    plt.xlabel(r"$\sigma/V_{\rm disp}$")
                     plt.legend()
 
                     # compute rad hist for pred and true satellites
@@ -837,14 +1047,15 @@ for i_pair in range(len(secondaries)):
                     #hist_true, _ = np.histogram(diff, bins=rbins)
                     hist_true, _ = np.histogram(sbdnm_ms[rchoice_ms], bins=rbins) # og
 
-                    plt.figure(2)
+                    plt.figure(1)
                     plt.axvline(x=1., ls='--', color='black', zorder=0)
                     plt.plot(rbinc, hist_true, ls='-', color='red', lw=2, label='true')
                     plt.plot(rbinc, hist_pred, ls='-', color='blue', lw=2, label='pred')
                     plt.xscale('log')
+                    plt.xlabel(r"$r/R_{\rm 200m}$")
                     plt.legend()
                     
-                    from utils import get_jack_corr
+                    #from utils import get_jack_corr
                     import Corrfunc
                     xyz_pred = pos_pred_sats[sum_sats-ng: sum_sats]
                     xyz_true = ((SubhaloPos[index_sats])[choice_sats])[rchoice_ms]
@@ -854,17 +1065,19 @@ for i_pair in range(len(secondaries)):
                     w_true = np.ones(xyz_true.shape[0], dtype=xyz_true.dtype)
                     print("true and fake difference = ", len(w_pred)-len(w_true))
                     print("fake number = ", len(w_pred))
-                    bins = np.logspace(-1, 1.5, 21)
+                    bins = np.logspace(-3, 1.5, 21)
                     binc = (bins[1:]+bins[:-1])*.5
                     corr_pred = Corrfunc.theory.xi(boxsize=Lbox, nthreads=20, binfile=bins, X=xyz_pred[:, 0], Y=xyz_pred[:, 1], Z=xyz_pred[:, 2])['xi']
                     corr_true = Corrfunc.theory.xi(boxsize=Lbox, nthreads=20, binfile=bins, X=xyz_true[:, 0], Y=xyz_true[:, 1], Z=xyz_true[:, 2])['xi']
                     #rat_mean, rat_err, corr_shuff_mean, corr_shuff_err, corr_true_mean, corr_true_err, _ = get_jack_corr(xyz_true, w_true, xyz_pred, w_pred, Lbox, N_dim=3, bins=bins)
 
                     plt.figure(3)
-                    plt.plot(binc, corr_pred*binc**2, label="pred", color='blue')
-                    plt.plot(binc, corr_true*binc**2, label="true", color='red')
+                    plt.plot(binc, corr_pred*binc**3, label="pred", color='blue')
+                    plt.plot(binc, corr_true*binc**3, label="true", color='red')
                     plt.legend()
                     plt.xscale('log')
+                    plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
+                    plt.ylabel(r'$\xi_{\rm sat}(r) r^3$')
                     plt.show()
                     
                 if secondary == 'None': break # since we only need to go through the halos once (there is no division by env)
@@ -904,32 +1117,32 @@ for i_pair in range(len(secondaries)):
     # record all the information (pos, vel and halo inds of pred cent and sats) 
     if fit_type == 'plane':
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
     else:
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
 

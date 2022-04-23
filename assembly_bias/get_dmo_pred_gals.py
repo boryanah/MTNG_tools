@@ -11,7 +11,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.optimize import minimize
 from scipy import special
 from scipy.interpolate import interp1d
-import Corrfunc # TESTING
 
 zs = [0., 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0]
 snaps = [264, 237, 214, 179, 151, 129, 94, 80, 69, 51]
@@ -29,8 +28,9 @@ fit_type = sys.argv[2] # 'ramp' # 'plane'
 fun_cent = 'linear' # 'tanh' # 'erf' # 'gd' # 'abs' # 'arctan'
 fun_sats = 'linear'
 method = 'powell' # 'Nelder-Mead'
-mode = 'all'#'all', 'bins'
+mode = 'all' #'all', 'bins'
 subsamp_or_subhalos = 'subsamp' #'subhalos' # 'subsamp'
+dm_str = "dm"
 p0 = np.array([0., 0.]) 
 Lbox = 500.
 if len(sys.argv) > 3:
@@ -49,10 +49,20 @@ else:
     n_gal = '2.0e-03' # '7.0e-04'
 if len(sys.argv) > 6:
     snapshot = int(sys.argv[6])
-    snapshot_dm += 5                
+    if dm_str == 'dm':
+        offset = 5
+    elif dm_str == 'fp':
+        offset = 0
+    snapshot_dm = snapshot + offset
     redshift = z_dict[snapshot]
 else:
-    snapshot = 179; snapshot_dm = 184; redshift = 1.
+    snapshot = 179;
+    if dm_str == 'dm':
+        offset = 5
+    elif dm_str == 'fp':
+        offset = 0
+    snapshot_dm = snapshot + offset
+    redshift = 1.
 print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{snapshot:d}_{n_gal}")
 
 def downsample_counts(GroupCount, GroupCountPred):
@@ -176,7 +186,10 @@ def prob_linear_sats_dm(a, b):
     p = (1. + a*x_dm[choice_dm] + b*y_dm[choice_dm]) * cts_sats_mean_dm[choice_dm]
     return p
 
-params = ['GroupVirial', 'GroupConc', 'GroupVelDisp', 'GroupShear_R2', 'GroupEnv_R2', 'GroupMarkedEnv_R2_s0.25_p2']#, 'GroupGamma'] # 'GroupConcRad'
+# gamma 184 and 179
+# vani 179
+#params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt']#, 'GroupMarkedEnv_s0.25_p2']#, 'GroupGamma'] # 'GroupConcRad'
+params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupEnv_R1.5', 'GroupShear_R1.5', 'GroupConcRad', 'GroupVirial', 'GroupSnap_peak', 'GroupVelDisp', 'GroupPotential', 'Group_M_Splash', 'Group_R_Splash', 'GroupNsubs', 'GroupSnap_peak', 'GroupMarkedEnv_R2.0_s0.25_p2', 'GroupHalfmassRad']
 n_combos = len(params)*(len(params)-1)//2
 if 'ramp' == fit_type:
     secondaries = params.copy()
@@ -196,7 +209,12 @@ else:
                 tertiaries.append(params[i_param])
                 print(params[j_param], params[i_param])
 print("combos = ", len(secondaries))
-secondaries = ['GroupEnv_R2']
+if fit_type == 'ramp':
+    secondaries.append('None')
+#secondaries = ['None'] # important
+#secondaries = ['GroupEnv_R2']
+#secondaries = ['GroupEnvAdapt']
+#secondaries = ['GroupMarkedEnv_R2_s0.25_p2']
 #secondaries = ['GroupGamma']
 #secondaries = ['GroupConc']
 #secondaries = ['GroupHalfmassRad']
@@ -282,9 +300,30 @@ else:
     GroupCountCent = np.load(tng_dir+f"data_fp/GroupCentsCount{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npy")
     GroupCountSats = GroupCount-GroupCountCent
 
+print(f"minimum halo mass with any counts = {np.min(GrMcrit[GroupCount > 0]):.2e}")
+
+    
+# load dm halo properties
+# TESTING! splashback is different not sure what this means maybe indexing?
+GroupPos_dm = np.load(tng_dir+f'data_{dm_str}/GroupPos_{dm_str}_{snapshot_dm:d}.npy')
+GrMcrit_dm = np.load(tng_dir+f'data_{dm_str}/Group_M_TopHat200_{dm_str}_{snapshot_dm:d}.npy')*1.e10
+GrRcrit_dm = np.load(tng_dir+f'data_{dm_str}/Group_R_TopHat200_{dm_str}_{snapshot_dm:d}.npy')
+GroupVelDisp_dm = np.load(tng_dir+f'data_{dm_str}/GroupVelDisp_{dm_str}_{snapshot_dm:d}.npy')
+GroupVel_dm = np.load(tng_dir+f'data_{dm_str}/GroupVel_{dm_str}_{snapshot_dm:d}.npy')
+index_halo_dm = np.arange(len(GrMcrit_dm), dtype=int) # could sort this to preserve the original order
+i_sort = np.argsort(GrMcrit_dm)[::-1]
+GroupPos_dm = GroupPos_dm[i_sort]
+GrMcrit_dm = GrMcrit_dm[i_sort]
+GroupVel_dm = GroupVel_dm[i_sort]
+GroupVelDisp_dm = GroupVelDisp_dm[i_sort]
+GrRcrit_dm = GrRcrit_dm[i_sort]
+index_halo_dm = index_halo_dm[i_sort]
+print("Note that because of the sorting, you can't use SubhaloGrNr")
+    
 # TESTING! needs to be regenerated and sorted
 if subsamp_or_subhalos == 'subsamp':
     # load particle subsamples for some halos
+    """
     GroupSubsampIndex = np.load(f"../hod_subsamples/data/subsample_halo_index_fp_{snapshot:d}.npy")
     GroupSubsampFirst = np.zeros(len(GroupCount), dtype=int)
     GroupSubsampSize = np.zeros(len(GroupCount), dtype=int)
@@ -292,8 +331,13 @@ if subsamp_or_subhalos == 'subsamp':
     GroupSubsampSize[GroupSubsampIndex] = np.load(f"../hod_subsamples/data/subsample_nsize_fp_{snapshot:d}.npy")
     PartSubsampPos = np.load(f"../hod_subsamples/data/subsample_pos_fp_{snapshot:d}.npy")
     PartSubsampVel = np.load(f"../hod_subsamples/data/subsample_vel_fp_{snapshot:d}.npy")
-
-    
+    """
+    print("missing subsampling files!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    GroupSubsampFirst = np.zeros(len(GrMcrit_dm), dtype=int)
+    GroupSubsampIndex = np.zeros(len(GrMcrit_dm), dtype=int)
+    GroupSubsampSize = np.zeros(len(GrMcrit_dm), dtype=int)
+    PartSubsampPos = np.zeros((100, 3))
+    PartSubsampVel = np.zeros((100, 3))
     
 # galaxy properties
 mcrit_sats = GrMcrit[parent_sats]
@@ -339,27 +383,6 @@ vrbins = np.linspace(-1.3, 1.3, 41)
 vrbinc = (vrbins[1:]+vrbins[:-1])*.5
 many_vrs = np.linspace(-1., 1., 100)
 
-# load dm halo properties
-# TESTING! splashback is different not sure what this means maybe indexing?
-GroupPos_dm = np.load(tng_dir+f'data_dm/GroupPos_dm_{snapshot_dm:d}.npy')
-GrMcrit_dm = np.load(tng_dir+f'data_dm/Group_M_TopHat200_dm_{snapshot_dm:d}.npy')*1.e10
-GrRcrit_dm = np.load(tng_dir+f'data_dm/Group_R_TopHat200_dm_{snapshot_dm:d}.npy')
-GroupVelDisp_dm = np.load(tng_dir+f'data_dm/GroupVelDisp_dm_{snapshot_dm:d}.npy')
-GroupVel_dm = np.load(tng_dir+f'data_dm/GroupVel_dm_{snapshot_dm:d}.npy')
-index_halo_dm = np.arange(len(GrMcrit_dm), dtype=int) # could sort this to preserve the original order
-i_sort = np.argsort(GrMcrit_dm)[::-1]
-GroupPos_dm = GroupPos_dm[i_sort]
-GrMcrit_dm = GrMcrit_dm[i_sort]
-GroupVel_dm = GroupVel_dm[i_sort]
-GroupVelDisp_dm = GroupVelDisp_dm[i_sort]
-GrRcrit_dm = GrRcrit_dm[i_sort]
-print("Note that because of the sorting, you can't use SubhaloGrNr")
-
-# TESTING!!!!!!!!!!!!!!!!!!!!!!!!
-GroupSubsampFirst = np.zeros(len(GrMcrit_dm), dtype=int)
-GroupSubsampIndex = np.zeros(len(GrMcrit_dm), dtype=int)
-GroupSubsampSize = np.zeros(len(GrMcrit_dm), dtype=int)
-
 # need to add Lbox/4. to all the dm positions because of offset
 print("NOTICE THAT WE ARE CORRECTING FOR BOX/4 SHIFT") # checked
 GroupPos_dm += np.array([Lbox/4., 0., 0.])
@@ -377,13 +400,14 @@ cbins[-1] += 0.1
 print("max halo mass = %.1e"%GrMcrit.max())
 
 # mass bins # notice slightly lower upper limit cause few halos
-if want_splash:
-    mbins = np.logspace(11, 14.2, 31) # with splashback
-else:
-    mbins = np.logspace(11, 14, 31) # og
+n_top = 400
+m_top = np.sort(GrMcrit)[::-1][n_top]
+print(f"maximum halo mass = {m_top:.2e}")
+mbins = np.logspace(11, np.log10(m_top), 31) # with splashback
 mbinc = (mbins[1:]+mbins[:-1])*0.5
 print("number of halos above the last mass bin = ", np.sum(mbins[-1] < GrMcrit))
 mbins_dm = np.zeros(len(mbins))
+assert np.min(GrMcrit[GroupCount > 0]) > mbins[0]
 
 # halos that are never moved
 n_top = np.sum(mbins[-1] < GrMcrit)
@@ -407,15 +431,25 @@ for i_pair in range(len(secondaries)):
     GroupCountCentPred_dm[:n_top] = GroupCountCent[(mbins[-1] < GrMcrit)]
 
     # load secondary and tertiary property
-    GroupEnv = np.load(tng_dir+f'data_fp/{secondary:s}_fp_{snapshot:d}.npy')
-    GroupEnv_dm = np.load(tng_dir+f'data_dm/{secondary:s}_dm_{snapshot_dm:d}.npy')[i_sort] # crucial to sort!!!
+    if secondary != 'None':
+        GroupEnv = np.load(tng_dir+f'data_fp/{secondary:s}_fp_{snapshot:d}.npy')
+        GroupEnv_dm = np.load(tng_dir+f'data_{dm_str}/{secondary:s}_{dm_str}_{snapshot_dm:d}.npy')[i_sort] # crucial to sort!!!
+    else:
+        GroupEnv = np.zeros(len(GrMcrit))
+        GroupEnv_dm = np.zeros(len(GrMcrit_dm))
     if fit_type == 'ramp':
         GroupConc = np.zeros(len(GroupEnv))
         GroupConc_dm = np.zeros(len(GroupEnv_dm))
     else:
         GroupConc = np.load(tng_dir+f'data_fp/{tertiary:s}_fp_{snapshot:d}.npy')
-        GroupConc_dm = np.load(tng_dir+f'data_dm/{tertiary:s}_dm_{snapshot_dm:d}.npy')[i_sort]
+        GroupConc_dm = np.load(tng_dir+f'data_{dm_str}/{tertiary:s}_{dm_str}_{snapshot_dm:d}.npy')[i_sort]
 
+    """
+    plt.scatter(GrMcrit_dm[mbins[10] < GrMcrit_dm], GroupEnv_dm[mbins[10] < GrMcrit_dm], s=1)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.show()
+    """
     # concentrations, environments of the satellite galaxies
     conc_sats = GroupConc[SubhaloGrNr[index_sats]]
     env_sats = GroupEnv[SubhaloGrNr[index_sats]]
@@ -497,38 +531,41 @@ for i_pair in range(len(secondaries)):
         if mode == 'bins':
             
             # then we minimize for a and b
+            if secondary != 'None':
+                res_cent = minimize(like_cent, p0, method=method)
+                res_sats = minimize(like_sats, p0, method=method)
+                a_cent, b_cent = res_cent['x']
+                a_sats, b_sats = res_sats['x']
+                print(f"a_cent, b_cent = {a_cent:.4f}, {b_cent:.4f}")
+                print(f"a_sats, b_sats = {a_sats:.4f}, {b_sats:.4f}")
+            else:
+                a_cent, b_cent = 0., 0.
+                a_sats, b_sats = 0., 0.
+                
+            # compute prediction for occupancy given best-fit a and b and save into counts arrays (equiv to true counts)
+            GroupCountCentPred_dm[choice_dm] = prob_cent_dm(a_cent, b_cent)
+            GroupCountSatsPred_dm[choice_dm] = prob_sats_dm(a_sats, b_sats)
+
+            # save the best-fit a and b values
+            a_arr_cent[i], b_arr_cent[i] = a_cent, b_cent
+            a_arr_sats[i], b_arr_sats[i] = a_sats, b_sats
+
+    # if we are fitting a single a and b parameter for all mass bins (for cent and sats)
+    if mode == 'all':
+        # use only the halos within the mass range of interest (speeds up)
+        choice = (mbins[0] < GrMcrit) & (mbins[-1] >= GrMcrit)
+        
+        # then we minimize for a and b
+        if secondary != 'None':
             res_cent = minimize(like_cent, p0, method=method)
             res_sats = minimize(like_sats, p0, method=method)
             a_cent, b_cent = res_cent['x']
             a_sats, b_sats = res_sats['x']
             print(f"a_cent, b_cent = {a_cent:.4f}, {b_cent:.4f}")
             print(f"a_sats, b_sats = {a_sats:.4f}, {b_sats:.4f}")
-            
-            # compute prediction for occupancy given best-fit a and b and save into counts arrays (equiv to true counts)
-            GroupCountCentPred_dm[choice_dm] = prob_cent_dm(a_cent, b_cent)
-            GroupCountSatsPred_dm[choice_dm] = prob_sats_dm(a_sats, b_sats)
-
-            # save the best-fit a and b values
-            a_arr_cent[i] = a_cent
-            b_arr_cent[i] = b_cent
-            a_arr_sats[i] = a_sats
-            b_arr_sats[i] = b_sats
-
-    # if we are fitting a single a and b parameter for all mass bins (for cent and sats)
-    if mode == 'all':
-        # use only the halos within the mass range of interest (speeds up)
-        choice = (mbins[0] < GrMcrit) & (mbins[-1] >= GrMcrit)
-        """
-        # then we minimize for a and b
-        res_cent = minimize(like_cent, p0, method=method)
-        res_sats = minimize(like_sats, p0, method=method)
-        a_cent, b_cent = res_cent['x']
-        a_sats, b_sats = res_sats['x']
-        print(f"a_cent, b_cent = {a_cent:.4f}, {b_cent:.4f}")
-        print(f"a_sats, b_sats = {a_sats:.4f}, {b_sats:.4f}")
-        """
-        a_cent, b_cent = 0.536, 0.
-        a_sats, b_sats = 0.725, 0.
+        else:
+            a_cent, b_cent = 0., 0.
+            a_sats, b_sats = 0., 0.
         
         # select equivalent halos in dmo
         #choice_dm = (mbins_dm[0] < GrMcrit_dm) & (mbins_dm[-1] >= GrMcrit_dm) # og        
@@ -548,7 +585,7 @@ for i_pair in range(len(secondaries)):
     GroupCountSatsPred_dm[GroupCountSatsPred_dm < 0] = 0
     GroupCountCentPred_dm[GroupCountCentPred_dm > 1] = 1
     GroupCountCentPred_dm[GroupCountCentPred_dm < 0] = 0
-    
+
     # draw from a poisson and a binomial distribution for the halos in the mass range of interest
     choice = (mbins[-1] >= GrMcrit) & (mbins[0] < GrMcrit)
     choice_dm = (mbins_dm[-1] >= GrMcrit_dm) & (mbins_dm[0] < GrMcrit_dm)
@@ -567,10 +604,11 @@ for i_pair in range(len(secondaries)):
     GroupCountSatsCopy[choice], GroupCountSatsPred_dm[choice_dm] = downsample_counts(GroupCountSats[choice], GroupCountSatsPred_dm[choice_dm])
     GroupCountSatsPred_dm = GroupCountSatsPred_dm.astype(int)
     GroupCountCentPred_dm = GroupCountCentPred_dm.astype(int)
-
     print("after downsampling, sats cent = ", np.sum(GroupCountSatsPred_dm), np.sum(GroupCountCentPred_dm))
 
+    """
     # TESTING!!!!!!!!!!!!
+    import Corrfunc
     GroupCount = GroupCountSats + GroupCountCent
     w_true = GroupCount[GroupCount > 0].astype(np.float32)
     x_true = GroupPos[GroupCount > 0].astype(np.float32)
@@ -581,9 +619,14 @@ for i_pair in range(len(secondaries)):
     rbinc = (rbins[1:]+rbins[:-1])*.5
     xi = Corrfunc.theory.xi(Lbox, 16, rbins, *x_true.T, weights=w_true, weight_type="pair_product")['xi']
     xi_shuff = Corrfunc.theory.xi(Lbox, 16, rbins, *x_shuff.T, weights=w_shuff, weight_type="pair_product")['xi']
+    plt.plot(rbinc, np.ones(len(rbinc)), color='black', ls='--')
     plt.plot(rbinc, xi_shuff/xi)
+    plt.xscale('log')
+    plt.ylim([0.0, 2.0])
     plt.show()
-
+    quit()
+    """
+    
     # record pos and vel of centrals and parent halo index
     pos_pred_sats = np.zeros((np.sum(GroupCountSatsPred_dm), 3))
     vel_pred_sats = np.zeros((np.sum(GroupCountSatsPred_dm), 3))
@@ -592,7 +635,6 @@ for i_pair in range(len(secondaries)):
     pos_pred_cent = GroupPos_dm[GroupCountCentPred_dm > 0]
     vel_pred_cent = GroupVel_dm[GroupCountCentPred_dm > 0]
     ind_pred_cent = index_halo_dm[GroupCountCentPred_dm > 0]
-    
     
     # counter over satellites given
     sum_sats = 0
@@ -864,32 +906,32 @@ for i_pair in range(len(secondaries)):
     # record all the information (pos, vel and halo inds of pred cent and sats) 
     if fit_type == 'plane':
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_cent)
     else:
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_dm_{snapshot_dm:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{dm_str}_{snapshot_dm:d}.npy", ind_pred_cent)
 

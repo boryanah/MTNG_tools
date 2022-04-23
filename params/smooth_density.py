@@ -15,14 +15,11 @@ sim_type = "MTNG"
 tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/"}
 Lbox_dic = {'TNG': 205., 'MTNG': 500.}
 pos_part_dic = {'TNG': "parts_position_tng300-2_99.npy", 'MTNG': f"data_parts/pos_down_1000_snap_{snapshot:s}_{fp_dm:s}.npy"}
-void_dic = {'TNG': "../finders/tracers.SVF_recen_ovl0.5", 'MTNG': f"../visualize/data/pos_down_10000_snap_{snapshot:s}_{fp_dm:s}.SVF_recen_ovl0.5"}
-data_dir_dic = {'TNG': "data_tng/", 'MTNG': "data_mtng/"}
 N_dim_dic = {'TNG': 512, 'MTNG': 512}# can use the really high-res file 1024
 sim_name_dic = {'TNG': "tng300-2", 'MTNG': "mtng"}
 
 tng_dir = tng_dir_dic[sim_type]
 Lbox = Lbox_dic[sim_type]
-data_dir = data_dir_dic[sim_type]
 N_dim = N_dim_dic[sim_type]
 pos_parts = np.load(tng_dir+pos_part_dic[sim_type])
 sim_name = sim_name_dic[sim_type]

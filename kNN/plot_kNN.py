@@ -79,11 +79,11 @@ for i in range(len(fun_types)):
             other = fit_type+'_'+secondary
 
         if fit_type == 'plane':
-            data_rat_mean = np.load(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
-            data_rat_err = np.load(f"{gal_type:s}/kNN_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{fp_dm:s}_{snapshot:d}.npy")
+            data_rat_mean = np.load(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+            data_rat_err = np.load(f"{gal_type:s}/kNN_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
         else:
-            data_rat_mean = np.load(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
-            data_rat_err = np.load(f"{gal_type:s}/kNN_rat_err_all_{fun_type:s}_{secondary:s}_{fp_dm:s}_{snapshot:d}.npy")
+            data_rat_mean = np.load(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+            data_rat_err = np.load(f"{gal_type:s}/kNN_rat_err_all_{fun_type:s}_{secondary:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
 
         # plot
         plt.subplot(3, len(secondaries)//3, i_pair+1)

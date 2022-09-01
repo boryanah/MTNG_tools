@@ -33,29 +33,34 @@ gal_type = sys.argv[1]
 fit_type = sys.argv[2]
 fun_types = ['linear']
 fun_type_sats = 'linear'
-#fp_dm = 'fp'
-fp_dm = 'dm'
+fp_dm = 'fp'
+#fp_dm = 'dm'
 #mode = 'bins' # fitting in bins
 mode = 'all' # fitting once for all
 ass_dir = "/home/boryanah/MTNG/assembly_bias/"
-if len(sys.argv) > 3:
-    want_vrad = int(sys.argv[3])
+if gal_type == 'ELG':
+    want_drad = True
+    want_cond = True
+    want_pseudo = True
 else:
-    want_vrad = False
+    want_drad = False
+    want_cond = False
+    want_pseudo = False
+drad_str = "_drad" if want_drad else ""
+cond_str = "_cond" if want_cond else ""
+pseudo_str = "_pseudo" if want_pseudo else ""
+want_vrad = False
 vrad_str = "_vrad" if want_vrad else ""
-vrad_lab = "radial_vel" if want_vrad else ""
-if len(sys.argv) > 4:
-    want_splash = int(sys.argv[4])
-else:
-    want_splash = False
+want_fixocc = False
+fixocc_str = "_fixocc" if want_fixocc else ""
+want_splash = False
 splash_str = "_splash" if want_splash else ""
-splash_lab = "splashback" if want_splash else ""
-if len(sys.argv) > 5:
-    n_gal = sys.argv[5]
+if len(sys.argv) > 3:
+    n_gal = sys.argv[3]
 else:
     n_gal = '2.0e-03' # '7.0e-04'
-if len(sys.argv) > 6:
-    snapshot_fp = int(sys.argv[6])
+if len(sys.argv) > 4:
+    snapshot_fp = int(sys.argv[4])
     if fp_dm == 'dm':
         offset = 5
     elif fp_dm == 'fp':
@@ -70,7 +75,7 @@ else:
         offset = 0
     snapshot = snapshot_fp + offset
     redshift = z_dict[snapshot_fp]
-print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{snapshot:d}_{n_gal}")
+print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{fixocc_str}_{cond_str}_{fp_dm}_{snapshot:d}_{n_gal}")
 
 # k nearest neighbors
 dtype = np.int64
@@ -80,12 +85,13 @@ ks = np.array([1, 2, 4, 8], dtype=dtype)
 bins = np.geomspace(3., 50., 51)
 binc = (bins[1:] + bins[:-1]) * 0.5
 binc = np.vstack((binc, binc, binc, binc)).T
-np.save(f"{gal_type:s}/rbinc.npy", binc)
+np.save(f"{gal_type}/rbinc.npy", binc)
 
 N_query = dtype(1.e7)
 N_dim = 3 #5
 
-params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupMarkedEnv_s0.25_p2']#, 'GroupGamma'] # 'GroupConcRad'
+params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
+#params = []
 n_combos = len(params)*(len(params)-1)//2
 print("combos = ", n_combos)
 if 'ramp' == fit_type:
@@ -126,14 +132,14 @@ SubhaloGrNr = np.load(tng_dir+f'data_fp/SubhaloGroupNr_fp_{snapshot_fp:d}.npy')
 GroupPos = np.load(tng_dir+f'data_fp/GroupPos_fp_{snapshot_fp:d}.npy')
 GroupVel = np.load(tng_dir+f'data_fp/GroupVel_fp_{snapshot_fp:d}.npy')
 GroupVelDisp = np.load(tng_dir+f'data_fp/GroupVelDisp_fp_{snapshot_fp:d}.npy')
-GroupCount = np.load(tng_dir+f"data_fp/GroupCount{gal_type:s}_{n_gal:s}_fp_{snapshot_fp:d}.npy")
-GroupCountCent = np.load(tng_dir+f"data_fp/GroupCentsCount{gal_type:s}_{n_gal:s}_fp_{snapshot_fp:d}.npy")
+GroupCount = np.load(tng_dir+f"data_fp/GroupCount{gal_type}_{n_gal}_fp_{snapshot_fp:d}.npy")
+GroupCountCent = np.load(tng_dir+f"data_fp/GroupCentsCount{gal_type}_{n_gal}_fp_{snapshot_fp:d}.npy")
 GroupCountSats = GroupCount-GroupCountCent
 GrMcrit = np.load(tng_dir+f'data_fp/Group_M_TopHat200_fp_{snapshot_fp:d}.npy')*1.e10
 index_halo = np.arange(len(GrMcrit), dtype=int)
 
 # indices of the galaxies
-index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot_fp:d}.npy")
+index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type}_{n_gal}_{snapshot_fp:d}.npy")
 
 # identify central subhalos
 _, sub_inds_cent = np.unique(SubhaloGrNr, return_index=True)
@@ -157,35 +163,35 @@ for i in range(len(fun_types)):
         print("param pair = ", i_pair, secondary, tertiary)
         # directory of ramp and plane
         if fit_type == 'plane':
-            print(f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-            print(f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+            print(f"{gal_type}/pos_pred_all_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+            print(f"{gal_type}/pos_pred_all_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
             if mode == 'bins':
-                pos_sats_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_sats_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_cent_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(ass_dir+f"{gal_type}/pos_pred_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(ass_dir+f"{gal_type}/pos_pred_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(ass_dir+f"{gal_type}/vel_pred_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(ass_dir+f"{gal_type}/vel_pred_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
 
             elif mode == 'all':
-                pos_sats_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_sats_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_cent_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_sats_pred = np.load(ass_dir+f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_cent_pred = np.load(ass_dir+f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(ass_dir+f"{gal_type}/pos_pred_all_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(ass_dir+f"{gal_type}/pos_pred_all_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(ass_dir+f"{gal_type}/vel_pred_all_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(ass_dir+f"{gal_type}/vel_pred_all_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                ind_sats_pred = np.load(ass_dir+f"{gal_type}/ind_pred_all_{fun_type_sats}_sats_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                ind_cent_pred = np.load(ass_dir+f"{gal_type}/ind_pred_all_{fun_type}_cent_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
         else:
             if mode == 'bins':            
-                pos_sats_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_sats_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_cent_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(ass_dir+f"{gal_type}/pos_pred_{fun_type_sats}_sats_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(ass_dir+f"{gal_type}/pos_pred_{fun_type}_cent_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(ass_dir+f"{gal_type}/vel_pred_{fun_type_sats}_sats_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(ass_dir+f"{gal_type}/vel_pred_{fun_type}_cent_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
 
             elif mode == 'all':
-                pos_sats_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_all_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                pos_cent_pred = np.load(ass_dir+f"{gal_type:s}/pos_pred_all_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_sats_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_all_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                vel_cent_pred = np.load(ass_dir+f"{gal_type:s}/vel_pred_all_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_sats_pred = np.load(ass_dir+f"{gal_type:s}/ind_pred_all_{fun_type_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
-                ind_cent_pred = np.load(ass_dir+f"{gal_type:s}/ind_pred_all_{fun_type:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy")
+                pos_sats_pred = np.load(ass_dir+f"{gal_type}/pos_pred_all_{fun_type_sats}_sats_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                pos_cent_pred = np.load(ass_dir+f"{gal_type}/pos_pred_all_{fun_type}_cent_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_sats_pred = np.load(ass_dir+f"{gal_type}/vel_pred_all_{fun_type_sats}_sats_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                vel_cent_pred = np.load(ass_dir+f"{gal_type}/vel_pred_all_{fun_type}_cent_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                ind_sats_pred = np.load(ass_dir+f"{gal_type}/ind_pred_all_{fun_type_sats}_sats_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
+                ind_cent_pred = np.load(ass_dir+f"{gal_type}/ind_pred_all_{fun_type}_cent_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy")
 
         
         pos_pred = np.vstack((pos_cent_pred, pos_sats_pred))
@@ -217,28 +223,28 @@ for i in range(len(fun_types)):
         data_mean, data_err, data_ref_mean, data_ref_err, data_rat_mean, data_rat_err = \
             compute_jackknife_cdf_multi(pos_true, pos_pred, ks, N_query, N_dim, boxsize=Lbox, bins=binc)
         if secondary == 'None':
-            np.save(f"{gal_type:s}/kNN_true_mean_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_ref_mean)
-            np.save(f"{gal_type:s}/kNN_shuff_mean_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_mean)
-            np.save(f"{gal_type:s}/kNN_rat_shuff_mean_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_mean)
-            np.save(f"{gal_type:s}/kNN_rat_shuff_err_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_err)
+            np.save(f"{gal_type}/kNN_true_mean_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_ref_mean)
+            np.save(f"{gal_type}/kNN_shuff_mean_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_mean)
+            np.save(f"{gal_type}/kNN_rat_shuff_mean_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_mean)
+            np.save(f"{gal_type}/kNN_rat_shuff_err_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_err)
             quit()
         
 
         if fit_type == 'plane':
             if mode == 'bins':
-                np.save(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_mean)
-                np.save(f"{gal_type:s}//kNN_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_err)
+                np.save(f"{gal_type}/kNN_rat_mean_all_{fun_type}_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_mean)
+                np.save(f"{gal_type}//kNN_rat_err_all_{fun_type}_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_err)
 
             elif mode == 'all':
-                np.save(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_mean)
-                np.save(f"{gal_type:s}//kNN_rat_err_all_{fun_type:s}_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_err)
+                np.save(f"{gal_type}/kNN_rat_mean_all_{fun_type}_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_mean)
+                np.save(f"{gal_type}//kNN_rat_err_all_{fun_type}_{secondary}_{tertiary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_err)
 
         else:
             if mode == 'bins':
-                np.save(f"{gal_type:s}/kNN_rat_mean_all_{fit_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_mean)
-                np.save(f"{gal_type:s}//kNN_rat_err_all_{fit_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_err)
+                np.save(f"{gal_type}/kNN_rat_mean_all_{fit_type}_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_mean)
+                np.save(f"{gal_type}//kNN_rat_err_all_{fit_type}_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_err)
 
             elif mode == 'all':
-                np.save(f"{gal_type:s}/kNN_rat_mean_all_{fun_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_mean)
-                np.save(f"{gal_type:s}//kNN_rat_err_all_{fun_type:s}_{secondary:s}{vrad_str:s}{splash_str:s}_{n_gal}_{fp_dm:s}_{snapshot:d}.npy", data_rat_err)
+                np.save(f"{gal_type}/kNN_rat_mean_all_{fun_type}_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_mean)
+                np.save(f"{gal_type}//kNN_rat_err_all_{fun_type}_{secondary}{vrad_str}{splash_str}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", data_rat_err)
     

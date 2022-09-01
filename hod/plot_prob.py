@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import plotparams
 plotparams.buba()
 
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 
 gal_type = 'ELG'
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
@@ -71,8 +71,7 @@ ax_histx.set_ylabel(r'$\frac{P({\rm 1 \ cent}|{\rm >0 \ sat})}{P({\rm 1 \ cent})
 ax_histx.legend(fontsize=18)
 ax_histx.set_ylim([0, 2.5])
 ax_histx.set_xlim([xmin, xmax])
-#plt.savefig(f"prob_cent_{n_gal:s}_fp_{snapshot:d}.png")
-plt.savefig(f"figs/prob_cent_{n_gal}.png", bbox_inches='tight', pad_inches=0.)
+plt.savefig(f"figs/prob_cent_{n_gal}.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()
 
 
@@ -104,7 +103,7 @@ ax_histx.set_xlabel(r'$M_{\rm halo} \ [M_\odot/h]$')
 ax_histx.set_ylabel(r'${\rm Ratio}$')
 ax_histx.set_ylim([0, 2.5])
 ax_histx.set_xlim([xmin, xmax])
-plt.savefig(f"prob_sats_{n_gal:s}_fp_{snapshot:d}.png")
+plt.savefig(f"prob_sats_{n_gal:s}_fp_{snapshot:d}.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()
 quit()
 
@@ -113,7 +112,7 @@ plt.plot(mbinc, prob_acent, label=label_prob_acent)
 plt.plot(mbinc, prob_acent_given_anysat, label=label_prob_acent_given_anysat)
 plt.xscale('log')
 plt.legend()
-plt.savefig(f"prob_cent_{n_gal:s}_fp_{snapshot:d}.png")
+plt.savefig(f"prob_cent_{n_gal:s}_fp_{snapshot:d}.pdf")
 #plt.close()
 
 
@@ -122,6 +121,6 @@ plt.plot(mbinc, prob_anysat, label=label_prob_anysat)
 plt.plot(mbinc, prob_anysat_given_acent, label=label_prob_anysat_given_acent)
 plt.legend()
 plt.xscale('log')
-plt.savefig(f"prob_sats_{n_gal:s}_fp_{snapshot:d}.png")
+plt.savefig(f"prob_sats_{n_gal:s}_fp_{snapshot:d}.pdf")
 #plt.close()
 plt.show()

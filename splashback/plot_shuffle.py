@@ -11,7 +11,7 @@ labels = ['Virial radius', 'Splashback']
 colors = ['#33BBEE','#EE7733','#CC3311','#0099BB','#0077BB','#EE3377','#BBBBBB']
 
 # colors
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
 # simulation parametes
@@ -19,7 +19,7 @@ fp_dm = 'fp'
 gal_types = ['LRG', 'ELG']
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
 p1, p2 = n_gal.split('e-0')
-snapshots = [179, 264]
+snapshots = [179]#, 264]
 zs = [1., 0.]
 
 
@@ -76,5 +76,5 @@ plt.legend(ncol=2, fontsize=22)
 plt.xscale('log')
 plt.ylabel(r'$\xi_{\rm pred}/\xi_{\rm true}$')
 plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
-plt.savefig(f'figs/corr_rat_{snapshot:d}{ignore_str}.png')
+plt.savefig(f'figs/corr_rat_{snapshot:d}{ignore_str}.pdf', bbox_inches='tight', pad_inches=0.)
 plt.show()

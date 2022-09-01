@@ -79,5 +79,5 @@ ymax = np.ceil(ymax*10.)/10.
 ax_histx.set_yticks(np.arange(ymin, ymax, 0.2))
 #ax_histx.set_ylim([0.25, 1.75])
 #ax_histx.set_yscale('log')
-plt.savefig(f"figs/pair.png")
+plt.savefig(f"figs/pair.png", bbox_inches='tight', pad_inches=0.)
 plt.show()

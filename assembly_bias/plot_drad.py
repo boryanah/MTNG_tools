@@ -6,7 +6,7 @@ import plotparams
 plotparams.buba()
 
 # colors
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
 # simulation parametes
@@ -43,7 +43,7 @@ for i, snapshot in enumerate(snapshots):
     
     for gal_type in gal_types:
         gal_label = "{\\rm "+f"{gal_type}s"+"}"
-        if gal_type == 'LRG': continue
+        if gal_type == 'LRG': counter += 1; continue
 
         # load correlation function
         #corr_true_mean = np.load(f"{gal_type:s}/corr_mean_{n_gal}_{fp_dm:s}_{snapshot_dm:d}.npy") 
@@ -77,6 +77,6 @@ plt.legend(ncol=2, fontsize=22)
 plt.xscale('log')
 plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
 plt.ylabel(r'$\xi_{\rm pred}(r) / \xi_{\rm true}(r)$')
-plt.savefig(f"figs/drad_{n_gal}.png")
+plt.savefig(f"figs/drad_{n_gal}.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()
 

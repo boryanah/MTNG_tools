@@ -86,10 +86,10 @@ for z_int in z_ints:
                 mstar_lrg = 4.2e10 # fyi
             elif np.isclose(1., z_int):
                 # want to elevate ssfr threshold, so need to bring down mstar
-                #mstar_thresh = 6.e9 # og
-                #ssfr_thresh = 6e-10 # og
-                mstar_thresh = 2.5e9 # TEST
-                ssfr_thresh = 8e-10 # TEST
+                mstar_thresh = 6.e9 # og
+                ssfr_thresh = 6e-10 # og
+                #mstar_thresh = 2.5e9 # TEST
+                #ssfr_thresh = 8e-10 # TEST
                 mstar_lrg = 3.3e10 # fyi
             elif np.isclose(1.5, z_int):
                 mstar_thresh = 7.7e9

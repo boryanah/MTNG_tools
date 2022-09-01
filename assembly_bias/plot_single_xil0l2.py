@@ -83,5 +83,5 @@ for l0l2_type in ['l0', 'l2']:
     ax_histx.set_yticks(np.arange(ymin, ymax, 0.2))
     #ax_histx.set_ylim([0.25, 1.75])
     #ax_histx.set_yscale('log')
-    plt.savefig(f"figs/xi{l0l2_type}.png")
+    plt.savefig(f"figs/xi{l0l2_type}.png", bbox_inches='tight', pad_inches=0.)
     plt.show()

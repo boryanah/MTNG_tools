@@ -251,12 +251,16 @@ def get_jack_xil0l2(pos_tr, pos_sh, Lbox, N_dim, bins, mu_max=1., nmu_bins=20, n
                 Ratl0[:, i_x+N_dim*i_y+N_dim**2*i_z] = ratl0
                 Xil0_sh[:, i_x+N_dim*i_y+N_dim**2*i_z] = xil0_sh
                 Xil0_tr[:, i_x+N_dim*i_y+N_dim**2*i_z] = xil0_tr
-                
-                ratl2 = xil2_sh/xil2_tr
+
+                # OLD definition
+                #ratl2 = xil2_sh/xil2_tr
+                # NEW definition
+                ratl2 = (xil2_sh-xil2_tr)/xil0_tr
                 Ratl2[:, i_x+N_dim*i_y+N_dim**2*i_z] = ratl2
                 Xil2_sh[:, i_x+N_dim*i_y+N_dim**2*i_z] = xil2_sh
                 Xil2_tr[:, i_x+N_dim*i_y+N_dim**2*i_z] = xil2_tr
-
+                
+                
     if periodic:
         rand_pos = np.array([0., 0., 0.])
     xil0_tr, xil2_tr, _ = get_xil0l2(pos_tr, Lbox, bins, mu_max, nmu_bins, nthreads, periodic, rand_pos)
@@ -274,7 +278,10 @@ def get_jack_xil0l2(pos_tr, pos_sh, Lbox, N_dim, bins, mu_max=1., nmu_bins=20, n
     xil0_tr_err = np.sqrt(N_dim**3-1)*np.std(Xil0_tr, axis=1)
     
     #ratl2_mean = np.mean(Ratl2, axis=1)
-    ratl2_mean = xil2_sh/xil2_tr
+    # OLD definition
+    #ratl2_mean = xil2_sh/xil2_tr
+    # NEW definition
+    ratl2_mean = (xil2_sh-xil2_tr)/xil0_tr
     ratl2_err = np.sqrt(N_dim**3-1)*np.std(Ratl2, axis=1)
     #xil2_sh_mean = np.mean(Xil2_sh, axis=1)
     xil2_sh_mean = xil2_sh

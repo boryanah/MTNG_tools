@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import plotparams
 plotparams.buba()
 
-cs = ['#33BBEE','#EE7733','#CC3311','#0099BB','#0077BB','#EE3377','#BBBBBB']
+cs = ['#CC3311','#EE7733','limegreen','#0077BB','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+#cs = ['#33BBEE','#EE7733','#CC3311','#0099BB','#0077BB','#EE3377','#BBBBBB']
 
 #sim_type = 'MTNG'; fp_dm = 'fp'
 sim_type = 'MTNG'; fp_dm = 'dm'
@@ -76,11 +77,11 @@ plt.figure(1, figsize=(9, 7))
 plt.ylabel(r'${\rm PDF}$')
 plt.xlabel(r'$R_{\rm sp}/R_{\rm 200m}$')
 plt.legend(fontsize=22)
-plt.savefig(f"figs/r_splash.png")
+plt.savefig(f"figs/r_splash.pdf", bbox_inches='tight', pad_inches=0.)
 
 plt.figure(2, figsize=(9, 7))
 plt.ylabel(r'${\rm PDF}$')
 plt.xlabel(r'$M_{\rm sp}/M_{\rm 200m}$')
 #plt.legend(fontsize=22)
-plt.savefig(f"figs/m_splash.png")
+plt.savefig(f"figs/m_splash.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()

@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 
 # simulation parameters
-#sim_type = 'MTNG'; fp_dm = 'fp'; pos_unit = 1.e3; snapshot = 179; snapshot_fp = 179; z = 1.
-sim_type = 'MTNG'; fp_dm = 'fp'; pos_unit = 1.e3; snapshot = 264; snapshot_fp = 179; z = 0.
-#sim_type = 'MTNG'; fp_dm = 'dm'; pos_unit = 1.e3; snapshot_fp = 179; snapshot = 184; z = 1.
+sim_type = 'MTNG'; fp_dm = 'fp'; pos_unit = 1.e3; snapshot = 179; z = 1.
+#sim_type = 'MTNG'; fp_dm = 'fp'; pos_unit = 1.e3; snapshot = 264; z = 0.
+#sim_type = 'MTNG'; fp_dm = 'dm'; pos_unit = 1.e3; snapshot = 184; z = 1.
 #sim_type = 'TNG'; fp_dm = 'dm'; pos_unit = 1.; snapshot = 55; z = 0.82
 #sim_type = 'TNG'; fp_dm = 'fp'; pos_unit = 1.; snapshot = 55; z = 0.82
 tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': f"/mnt/alan1/boryanah/MTNG/data_{fp_dm:s}/"}

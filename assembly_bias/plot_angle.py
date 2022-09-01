@@ -5,7 +5,7 @@ import plotparams
 plotparams.buba()
 
 # colors
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
@@ -37,29 +37,31 @@ for i, snapshot in enumerate(snapshots):
             hist_rand /= np.sum(hist_rand)
         binc = data['binc']
 
-        plt.plot(binc, hist_LRG, color=hexcolors_bright[counter], ls='-', label=rf"${z_label}, \ {gal_label}$")
+        plt.plot(np.cos(binc*np.pi/180.), hist_LRG, color=hexcolors_bright[counter], ls='-', label=rf"${z_label}, \ {gal_label}$")
         if gal_type == 'ELG':
-            plt.plot(binc, hist_rand, color='black', label=r"${\rm Random \ distn}$")
+            #plt.plot(np.cos(binc*np.pi/180.), hist_rand, color='black', label=r"${\rm Random \ distn}$")
+
+            cth = (2.*np.random.rand(250000)-1.)
+            ang = np.arccos(cth)*180./np.pi
+            bs = np.linspace(-0.98, 0.98, 101)
+            bc = (bs[1:]+bs[:-1])*.5
+
+            #hist, _ = np.histogram(cth, bins=bs)#, density=True)
+            #hist = hist.astype(np.float32)
+            #hist /= (np.sum(hist))
+            #plt.plot(bc, hist, color='green', label=r"${\rm Random \ cosine \ ready}$")
+            hist, _ = np.histogram(np.cos(ang*np.pi/180.), bins=bs)
+            hist = hist/np.sum(hist)
+            plt.plot(bc, hist, color='black', label=r"${\rm Random \ distn}$")
+            
         counter += 1
-plt.legend(fontsize=22)
-plt.xlim([0., 180.])
-plt.xlabel(r"$\cos^{-1} ({\hat r}_1 \cdot {\hat r}_n) \ [{\rm deg.}]$")
+plt.legend(fontsize=22, loc="upper right")
+#plt.xlim([0., 180.])
+plt.xlim([1., -1.])
+#plt.xlabel(r"$\cos^{-1} ({\hat r}_1 \cdot {\hat r}_n) \ [{\rm deg.}]$")
+plt.xlabel(r"${\hat r}_1 \cdot {\hat r}_n$")
 #plt.ylabel('PDF')
 label = r"$n_{\rm gal} = %s \times 10^{-%s}$"%(p1, p2)
 plt.text(0.1, 0.83, s=label, transform=plt.gca().transAxes)
-plt.savefig("figs/angle.png")
-plt.show()
-
-quit()
-plt.figure(figsize=(9, 7))
-plt.title("Angle wrt first satellite")
-plt.plot(np.cos(binc*np.pi/180.), hist_LRG, label='LRG')
-plt.plot(np.cos(binc*np.pi/180.), hist_ELG, label='ELG')
-plt.plot(np.cos(binc*np.pi/180.), hist_rand, label='random')
-plt.legend()
-#plt.xlim([0., 180.])
-#plt.xlim([0., 1.])
-plt.xlabel('cos(angle)')
-plt.ylabel('Number')
-plt.savefig("angle.png")
+plt.savefig("figs/angle.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()

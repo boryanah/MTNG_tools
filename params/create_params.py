@@ -13,12 +13,12 @@ plotparams.buba()
 
 sim_type = "MTNG";
 #sim_type = "TNG";
-tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/"}
+tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/dm_arepo/"}
 tng_dir = tng_dir_dic[sim_type]
 
 z_ints = [0., 0.5, 1.0, 1.5]
 z_ints = [0., 0.5, 1.5]
-z_ints = [1.0]
+z_ints = [0.0, 1.0]
 
 zs = [0., 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0]
 snaps = [264, 237, 214, 179, 151, 129, 94, 80, 69, 51]
@@ -36,7 +36,7 @@ for z_int in z_ints:
     #for fp_dm in ['fp', 'dm']:
     for fp_dm in ['dm']:
         print("redshift = ", z_int, fp_dm)
-        if fp_dm == 'fp': snapshot = z_dict[f"{z_int:.3f}"] # both dm and fp?
+        if fp_dm == 'fp' or "arepo" in tng_dir: snapshot = z_dict[f"{z_int:.3f}"] # both dm and fp?
         else: snapshot = z_dict[f"{z_int:.3f}"]+5 #print("need a dic for dm"); exit()#snapshot = 184 # both dm and fp?
 
         SubhaloGrNr = np.load(tng_dir+f'data_{fp_dm:s}/SubhaloGroupNr_{fp_dm:s}_{snapshot:d}.npy')

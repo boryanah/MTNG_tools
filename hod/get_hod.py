@@ -16,13 +16,12 @@ hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377',
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
-#gal_types = ['LRG', 'ELG']
-gal_types = ['ELG']
+gal_types = ['LRG', 'ELG'] # don't forget that if you change ELG selection, LRG changes too
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
 #snapshots = [179, 264]
-snapshots = [264]
+snapshots = [179]
 #zs = [1., 0.]
-zs = [0.]
+zs = [1.]
 
 # definitions for the axes
 left, width = 0.14, 0.85#0.1, 0.65
@@ -90,7 +89,7 @@ for i, snapshot in enumerate(snapshots):
         count_sats_halo = count_halo - count_cent_halo
 
         # probability
-        want_probs = True
+        want_probs = False
         if want_probs:
             # whether a halo has both a central and a satellite or just a satellite
             choice_anysat = ((count_sats_halo > 0)).astype(int)

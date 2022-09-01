@@ -38,10 +38,14 @@ p0 = np.array([0., 0.])
 Lbox = 500.
 if gal_type == 'ELG':
     want_drad = True
+    want_cond = True
+    want_pseudo = True
 else:
     want_drad = False
+    want_cond = False
+    want_pseudo = False
 drad_str = "_drad" if want_drad else ""
-want_pseudo = False
+cond_str = "_cond" if want_cond else ""
 pseudo_str = "_pseudo" if want_pseudo else ""
 want_vrad = False
 vrad_str = "_vrad" if want_vrad else ""
@@ -49,7 +53,6 @@ want_fixocc = False
 fixocc_str = "_fixocc" if want_fixocc else ""
 want_splash = False
 splash_str = "_splash" if want_splash else ""
-want_condprob = True # make part of infrastructure
 if len(sys.argv) > 3:
     n_gal = sys.argv[3]
 else:
@@ -70,7 +73,7 @@ else:
         offset = 0
     snapshot_dm = snapshot + offset
     redshift = 1.
-print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{fixocc_str}_{fp_dm}_{snapshot:d}_{n_gal}")
+print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{fixocc_str}_{cond_str}_{fp_dm}_{snapshot:d}_{n_gal}")
 
 def angle(a, b, c):
     res = (c**2 - b**2 - a**2)/(-2.0 * a * b)
@@ -187,10 +190,12 @@ def prob_linear_sats(a, b):
     return p
 
 # WORKS AS LONG AS YOU DON'T ADD MORE THAN ONE REPEATED QUANTITY
-new_params = ['GroupVelAni', 'SubhaloMass_peak']
+#new_params = ['GroupVelAni', 'SubhaloMass_peak']
+new_params = []
 #params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupEnv_R1.5', 'GroupShear_R1.5', 'GroupConcRad', 'GroupVirial', 'GroupSnap_peak', 'GroupVelDisp', 'GroupPotential', 'Group_M_Splash', 'Group_R_Splash', 'GroupNsubs', 'GroupSnap_peak', 'GroupMarkedEnv_R2.0_s0.25_p2', 'GroupHalfmassRad']
-params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupNsubs']
-#params = []
+#params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
+#params = ['GroupEnv_R1.5']
+params = []
 n_combos = len(params)*(len(params)-1)//2
 if 'ramp' == fit_type:
     secondaries = params.copy()
@@ -636,56 +641,71 @@ for i_pair in range(len(secondaries)):
         # draw from a (pseudo-)poisson and a binomial distribution for the halos in the mass range of interest
         choice = (mbins[-1] >= GrMcrit) & (mbins[0] < GrMcrit)
         if want_pseudo:
+            data = np.load(f"../hod/data/hod_{n_gal}_{gal_type}_{snapshot:d}.npz")
+            data_mbinc = data['mbinc']
+            data_alpha = (data['poisson']/data['std'])**2
+            data_alpha[np.isnan(data_alpha)] = 1. # 1 means poisson draw
+            alpha_thresh = 0.95 # 0.9 # og to spare computation
+            data_mbinc_min = data_mbinc[np.argmax(data_alpha < alpha_thresh)] # first instance below thresh
+            data_mbinc_min = np.max([data_mbinc_min, 1.e12])
+            alpha = np.mean(data_alpha[(data_mbinc_min <= data_mbinc) & (data_mbinc < mbins[-1])]) # mean in mass range of interest
+            #alpha = 0.8 # roughly
+            alphas = interp1d(data_mbinc, data_alpha, bounds_error=False, fill_value=0.)(GrMcrit)
+            print("alpha = ", alpha, data_alpha, data_mbinc)
+            print(f"data_mbinc_min = {data_mbinc_min:.2e}")
 
-            data_hod = np.load(f"../hod/data/hod_{n_gal}_{gal_type}_{snapshot:d}.npz")
-            hod_mbinc = data_hod['mbinc']
-            hod_std = data_hod['std']
-            hod_poisson = data_hod['poisson']
-            hod_alpha = (hod_poisson/hod_std)**2
-            hod_alpha[np.isnan(hod_alpha)] = 1.
-            mbinc_min = hod_mbinc[np.argmax(hod_alpha < 0.9)] # first instance where it dips below 0.9
-            alpha = np.mean(hod_alpha[(mbinc_min <= hod_mbinc) & (hod_mbinc < mbins[-1])])
-            #alpha = 0.8 # should be different
-            print("alpha = ", alpha)
-            print(f"mbinc_min = {mbinc_min:.2e}")
-
-            choice_poisson = choice & (GrMcrit <= mbinc_min)
+            # draw the occupations of the halos below threshold using poisson
+            choice_poisson = choice & (GrMcrit <= data_mbinc_min)
             GroupCountSatsPred[choice_poisson] = np.random.poisson(GroupCountSatsPred[choice_poisson], len(GroupCountSatsPred[choice_poisson]))
 
-            choice_pseudo = choice & (GrMcrit > mbinc_min) #1.e13)
+            # initialize arrays for the selected halos
+            choice_pseudo = choice & (GrMcrit > data_mbinc_min)
             count_sats = GroupCountSatsPred[choice_pseudo]
+            alphas = alphas[choice_pseudo]
             tmp = np.zeros(len(count_sats))
+            
             print("maximum satellites = ", np.max(count_sats))
             for i_c in range(len(count_sats)):
-                #if count_sats[i_c] < 1.e-4: continue
-                # maximum satellites we can give to this halo
                 if i_c%10000 == 0: print(i_c, len(count_sats))
-                n_max = count_sats[i_c] #np.max(GroupCountSatsPred[choice])
-                n_max = int(n_max+10.*np.sqrt(n_max))
+                # maximum satellites we can give to this halo
+                n_max = count_sats[i_c]
+                n_max = int(np.round(n_max+10.*np.sqrt(n_max))) # 10 sigma
                 n_max = np.max([n_max, 1])
-                #if n_max == 0: print("too tiny = ", count_sats[i_c]); continue
-                #print("pseudo poisson n_max = ", n_max)
-                ints = np.arange(0, n_max+1)
-                ps = draw_pseudo(ints, alpha, count_sats[i_c])
+                ints = np.arange(0, n_max+1) # what possible values can we get
+                ps = draw_pseudo(ints, alphas[i_c], count_sats[i_c]) # or alpha
                 ps /= np.sum(ps)
                 tmp[i_c] = np.random.choice(ints, p=ps)
             GroupCountSatsPred[choice_pseudo] = tmp
         else:
             GroupCountSatsPred[choice] = np.random.poisson(GroupCountSatsPred[choice], len(GroupCountSatsPred[choice]))
         
-        if want_condprob:
+        if want_cond:
             #A: 1 cent, B: >0 sat
             #P(1 cent|>0 sat) = P(A|B) equiv k P(A) = k P(1 cent) # where k roughly 2
             #P(1 cent|0 sat) = P(A|~B) = [P(A)/P(B)-P(A|B)]*[P(B)/(1-P(B))] # exact
+
+            # load k factor and interpolate over mass for each halo
+            data = np.load(f"../hod/data/{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npz")
+            prob_acent = data['prob_acent']; prob_acent = np.nan_to_num(prob_acent)
+            prob_anysat = data['prob_anysat']; prob_anysat = np.nan_to_num(prob_anysat)
+            prob_acent_given_anysat = data['prob_acent_given_anysat']
+            k = prob_acent_given_anysat/prob_acent; k = np.nan_to_num(k); k[k>3.] = 3.; print(k)
+            k = interp1d(data['mbinc'], k, bounds_error=False, fill_value=0.)(GrMcrit)
+            prob_A = GroupCountCentPred # probability for a central
+            #prob_A = interp1d(data['mbinc'], prob_acent, bounds_error=False, fill_value=0.)(GrMcrit)
+            prob_B = interp1d(data['mbinc'], prob_anysat, bounds_error=False, fill_value=0.)(GrMcrit)
+            #prob_B = GroupCountSatsPredCopy # pre-poisson draw
+            
+            # split the haloes into those having satellites and those that don't have satellites
             choice_anysat = GroupCountSatsPred > 0
-            # for P(A|B)
-            k = 2 # roughly
-            prob_A_given_B = k*GroupCountCentPred[choice_anysat] # k*prob_A
-            # for P(A|notB)
-            prob_A = GroupCountCentPred[~choice_anysat]
-            prob_B = GroupCountSatsPredCopy[~choice_anysat] # pre-poisson draw
-            prob_A_given_notB = (1.+(1.-k)/(1./prob_B-1.))*prob_A
+            
+            # for prob A given B 
+            prob_A_given_B = (k*prob_A)[choice_anysat] # k*prob_A
             GroupCountCentPred[choice_anysat] = (np.random.rand(np.sum(choice_anysat)) < prob_A_given_B)
+            
+            # for prob A given not B 
+            prob_A_given_notB = ((1.+(1.-k)/(1./prob_B-1.))*prob_A)[~choice_anysat]
+            prob_A_given_notB = np.nan_to_num(prob_A_given_notB)
             GroupCountCentPred[~choice_anysat] = (np.random.rand(np.sum(~choice_anysat)) < prob_A_given_notB)
         else:
             GroupCountCentPred = (np.random.rand(len(GroupCountCentPred)) < GroupCountCentPred)
@@ -1117,32 +1137,32 @@ for i_pair in range(len(secondaries)):
     # record all the information (pos, vel and halo inds of pred cent and sats) 
     if fit_type == 'plane':
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}_{tertiary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
     else:
         if mode == 'bins':
-            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
         elif mode == 'all':
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
-            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
-            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
-            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_sats)
+            np.save(f"{gal_type:s}/pos_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", pos_pred_cent)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_sats)
+            np.save(f"{gal_type:s}/vel_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", vel_pred_cent)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_sats:s}_sats_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_sats)
+            np.save(f"{gal_type:s}/ind_pred_all_{fun_cent:s}_cent_{secondary:s}{vrad_str:s}{splash_str:s}{pseudo_str}{drad_str}{fixocc_str}{cond_str}_{n_gal}_{fp_dm}_{snapshot:d}.npy", ind_pred_cent)
 

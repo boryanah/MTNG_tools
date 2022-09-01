@@ -11,7 +11,7 @@ import plotparams
 plotparams.buba()
 
 # colors
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
@@ -57,13 +57,20 @@ for i, snapshot in enumerate(snapshots):
         # load correlation function
         if gal_type == 'ELG':
             drad_str = "_drad"
+            cond_str = "_cond"
+            pseudo_str = "_pseudo"
         else:
             drad_str = ""
-        corr_true_mean = np.load(f"{gal_type:s}/corr_mean_{n_gal}{drad_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
-        corr_shuff_mean = np.load(f"{gal_type:s}/corr_shuff_mean_{n_gal}{drad_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
-        rat_shuff_mean = np.load(f"{gal_type:s}/corr_rat_shuff_mean_{n_gal}{drad_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
-        rat_shuff_err = np.load(f"{gal_type:s}/corr_rat_shuff_err_{n_gal}{drad_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
+            cond_str = ""
+            pseudo_str = ""
+
+        corr_true_mean = np.load(f"{gal_type:s}/corr_mean_{n_gal}{pseudo_str}{drad_str}{cond_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
+        corr_shuff_mean = np.load(f"{gal_type:s}/corr_shuff_mean_{n_gal}{pseudo_str}{drad_str}{cond_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
+        rat_shuff_mean = np.load(f"{gal_type:s}/corr_rat_shuff_mean_{n_gal}{pseudo_str}{drad_str}{cond_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
+        rat_shuff_err = np.load(f"{gal_type:s}/corr_rat_shuff_err_{n_gal}{pseudo_str}{drad_str}{cond_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
         rbinc = np.load(f"{gal_type:s}/rbinc.npy")
+
+        print(f"{gal_type:s}/corr_rat_shuff_mean_{n_gal}{pseudo_str}{drad_str}{cond_str}_{fp_dm:s}_{snapshot_dm:d}.npy")
         
         ax_scatter.errorbar(rbinc, corr_true_mean*rbinc**2, capsize=4, color=hexcolors_bright[counter], ls='-', label=rf"${z_label}, \ {gal_label}$")
         ax_scatter.errorbar(rbinc, corr_shuff_mean*rbinc**2, capsize=4, color=hexcolors_bright[counter], ls='--')
@@ -90,5 +97,5 @@ ymax = np.ceil(ymax*10.)/10.
 ax_histx.set_yticks(np.arange(ymin, ymax, 0.2))
 #ax_histx.set_ylim([0.25, 1.75])
 #ax_histx.set_yscale('log')
-plt.savefig(f"figs/corr_{n_gal}.png")
+plt.savefig(f"figs/corr_{n_gal}.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()

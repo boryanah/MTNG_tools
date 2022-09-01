@@ -12,12 +12,13 @@ plotparams.buba()
 
 # colors
 #hexcolors_bright = ['#0099BB','#0077BB','#33BBEE','#EE3377','#EE7733','#BBBBBB','#CC3311']
-hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
+hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
 gal_types = ['LRG', 'ELG']
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
+#n_gal = '7.0e-04' #['7.0e-04', '2.0e-03']
 
 p1, p2 = n_gal.split('e-0')
 snapshots = [179, 264]
@@ -97,5 +98,5 @@ ax_histx.set_ylabel(r'$\sqrt{{\rm Var}[N_{\rm sat}]}/\sqrt{\langle N_{\rm sat} \
 ax_histx.set_ylim([0.77, 1.23]) # TESTING
 ax_histx.set_xscale('log')
 #ax_histx.set_yscale('log') # og
-plt.savefig(f"figs/hod_{n_gal}.png", bbox_inches='tight', pad_inches=0.)
+plt.savefig(f"figs/hod_{n_gal}.pdf", bbox_inches='tight', pad_inches=0.)
 plt.show()

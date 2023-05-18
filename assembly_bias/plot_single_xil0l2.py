@@ -16,7 +16,8 @@ hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377',
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
 # simulation parameters
-tng_dir = "/mnt/alan1/boryanah/MTNG/"
+#tng_dir = "/mnt/alan1/boryanah/MTNG/"
+tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo/"
 gal_types = ['LRG', 'ELG']
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
 fp_dm = 'dm'
@@ -42,7 +43,7 @@ for l0l2_type in ['l0', 'l2']:
     for i, snapshot in enumerate(snapshots):
         z = zs[i]
         z_label = f"z = {z:.1f}"
-        if fp_dm == 'dm':
+        if fp_dm == 'dm' and "arepo" not in dm:
             snapshot_dm = snapshot+5
         else:
             snapshot_dm = snapshot

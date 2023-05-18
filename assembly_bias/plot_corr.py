@@ -26,20 +26,21 @@ greysafecols = ['#809BC8', 'black', '#FF6666', '#FFCC66', '#64C204']
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
 # simulation parameters
-tng_dir = "/mnt/alan1/boryanah/MTNG/"
+#tng_dir = "/mnt/alan1/boryanah/MTNG/"
+tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo/"
 Lbox = 500. # Mpc/h
-gal_types = ['LRG']#, 'ELG']
+gal_types = ['LRG', 'ELG']
 ignore_type = ''#'LRG'
 fit_type = 'ramp' # 'ramp' # 'plane'
 #fun_types = ['tanh', 'erf', 'gd', 'abs', 'arctan', 'linear']
 fun_type = 'linear'
 fun_type_sats = 'linear'
-fp_dm = 'fp'
-#fp_dm = 'dm'
+#fp_dm = 'fp'
+fp_dm = 'dm'
 mode = 'all' #'all' # fitting once for all # 'bins' fitting in bins
-n_gal = '2.0e-03' # '7.0e-04'
+n_gal = '2.0e-03'# '2.0e-03' # '7.0e-04'
 p1, p2 = n_gal.split('e-0')
-snapshots = [179]#, 264]
+snapshots = [179, 264]
 zs = [1., 0.]
 cs = ['gold', 'goldenrod']
 als = [0.3, 0.3]
@@ -92,7 +93,7 @@ counter = 0
 for i, snapshot in enumerate(snapshots):
     z = zs[i]
     z_label = f"z = {z:.1f}"
-    if fp_dm == 'dm':
+    if fp_dm == 'dm' and "arepo" not in tng_dir:
         snapshot_dm = snapshot+5
     else:
         snapshot_dm = snapshot
@@ -106,9 +107,12 @@ for i, snapshot in enumerate(snapshots):
         
         # load correlation function
         if gal_type == 'ELG':
-            drad_str = "_drad"
-            cond_str = "_cond"
-            pseudo_str = "_pseudo"
+            drad_str = ""
+            cond_str = ""
+            pseudo_str = ""
+            #drad_str = "_drad"
+            #cond_str = "_cond"
+            #pseudo_str = "_pseudo"
         else:
             drad_str = ""
             cond_str = ""
@@ -176,7 +180,8 @@ for i, snapshot in enumerate(snapshots):
             #plt.gca().tick_params(axis='x', which='minor', top=True, direction='in', length=2)
             #plt.gca().xaxis.set_minor_locator(LogitLocator(30))
             #plt.gca().minorticks_on() # gives to both
-            plt.xlim([0.1, 40.])
+            #plt.xlim([0.1, 40.]) # og
+            plt.xlim([1.0, 30.])
             if i_pair >= number:
                 plt.xlabel(r'$r \ [{\rm Mpc}/h]$')
             if i_pair in lists:

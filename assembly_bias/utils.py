@@ -4,11 +4,8 @@ Tools for computing correlations
 import numpy as np
 import time
 
-import Corrfunc
-from Corrfunc.theory import DDrppi
-from Corrfunc.theory import DDsmu
-from Corrfunc.utils import convert_rp_pi_counts_to_wp
-from Corrfunc.utils import convert_3d_counts_to_cf
+from Corrfunc.theory import DDsmu, DDrppi, DD, xi
+from Corrfunc.utils import convert_rp_pi_counts_to_wp, convert_3d_counts_to_cf
 from halotools.mock_observables import tpcf_multipole
 from numba_2pcf.cf import numba_pairwise_vel
 
@@ -30,6 +27,18 @@ def get_RRsmu(N1, N2, Lbox, rbins, mubins):
     pairs *= 2.
     return pairs
 
+def get_RRrppi(N1, N2, Lbox, rpbins, pimax):
+    vol_all = np.pi*rpbins**2
+    dvol = vol_all[1:]-vol_all[:-1]
+    pibins = np.arange(pimax)
+    dpi = pibins[1:]-pibins[:-1]
+    n2 = N2/Lbox**3
+    n2_bin = dvol[:, None]*n2*dpi[None, :]
+    pairs = N1*n2_bin
+    pairs *= 2.
+    return pairs
+
+"""
 def get_RRrppi(N1, N2, Lbox, rpbins, pibins):
     vol_all = np.pi*rpbins**2
     dvol = vol_all[1:]-vol_all[:-1]
@@ -38,8 +47,8 @@ def get_RRrppi(N1, N2, Lbox, rpbins, pibins):
     n2_bin = dvol[:, None]*n2*dpi[None, :]
     pairs = N1*n2_bin
     pairs *= 2.
-    return RR
-
+    return pairs
+"""
 def get_xirppi(pos1, pos2, lbox, rpbins, pimax, pi_bin_size, Nthread=16, num_cells = 20, x2 = None, y2 = None, z2 = None):
     start = time.time()
     if not isinstance(pimax, int):
@@ -203,6 +212,7 @@ def get_jack_xirppi(xyz_true, xyz_hod, Lbox, pimax, pi_bin_size, N_dim=3, nthrea
 
 def get_jack_xil0l2(pos_tr, pos_sh, Lbox, N_dim, bins, mu_max=1., nmu_bins=20, nthreads=8, periodic=True):
     N = pos_tr.shape[0]
+    print(pos_sh.shape[0], pos_tr.shape[0])
     assert N == pos_sh.shape[0]
     if not periodic:
         RAND_N = N*15
@@ -339,12 +349,12 @@ def get_jack_corr(xyz_true, w_true, xyz_hod, w_hod, Lbox, N_dim=3, nthreads=16, 
 
                 # in case we don't have weights
                 if np.abs(np.sum(w_hod_jack)-len(w_hod_jack)) < 1.e-6:
-                    res_hod = Corrfunc.theory.xi(X=xyz_hod_jack[:,0],Y=xyz_hod_jack[:,1],Z=xyz_hod_jack[:,2],boxsize=Lbox,nthreads=nthreads,binfile=bins)
+                    res_hod = xi(X=xyz_hod_jack[:,0],Y=xyz_hod_jack[:,1],Z=xyz_hod_jack[:,2],boxsize=Lbox,nthreads=nthreads,binfile=bins)
                     xi_hod = res_hod['xi']
                 else:
-                    res_hod = Corrfunc.theory.xi(X=xyz_hod_jack[:,0],Y=xyz_hod_jack[:,1],Z=xyz_hod_jack[:,2],boxsize=Lbox,weights=w_hod_jack,weight_type='pair_product',nthreads=nthreads,binfile=bins)
+                    res_hod = xi(X=xyz_hod_jack[:,0],Y=xyz_hod_jack[:,1],Z=xyz_hod_jack[:,2],boxsize=Lbox,weights=w_hod_jack,weight_type='pair_product',nthreads=nthreads,binfile=bins)
                     xi_hod = res_hod['xi']
-                res_true = Corrfunc.theory.xi(X=xyz_true_jack[:,0],Y=xyz_true_jack[:,1],Z=xyz_true_jack[:,2],boxsize=Lbox,weights=w_true_jack,weight_type='pair_product',nthreads=16,binfile=bins)
+                res_true = xi(X=xyz_true_jack[:,0],Y=xyz_true_jack[:,1],Z=xyz_true_jack[:,2],boxsize=Lbox,weights=w_true_jack,weight_type='pair_product',nthreads=16,binfile=bins)
                 xi_true = res_true['xi']
                 
                 rat_hodtrue = xi_hod/xi_true
@@ -352,8 +362,8 @@ def get_jack_corr(xyz_true, w_true, xyz_hod, w_hod, Lbox, N_dim=3, nthreads=16, 
                 Corr_hod[:,i_x+N_dim*i_y+N_dim**2*i_z] = xi_hod
                 Corr_true[:,i_x+N_dim*i_y+N_dim**2*i_z] = xi_true
 
-    xi_true = Corrfunc.theory.xi(boxsize=Lbox, nthreads=16, X=xyz_true[:, 0], Y=xyz_true[:, 1], Z=xyz_true[:, 2], weights=w_true, weight_type='pair_product', binfile=bins)['xi']
-    xi_hod = Corrfunc.theory.xi(boxsize=Lbox, nthreads=16, X=xyz_hod[:, 0], Y=xyz_hod[:, 1], Z=xyz_hod[:, 2], weights=w_hod, weight_type='pair_product', binfile=bins)['xi']
+    xi_true = xi(boxsize=Lbox, nthreads=16, X=xyz_true[:, 0], Y=xyz_true[:, 1], Z=xyz_true[:, 2], weights=w_true, weight_type='pair_product', binfile=bins)['xi']
+    xi_hod = xi(boxsize=Lbox, nthreads=16, X=xyz_hod[:, 0], Y=xyz_hod[:, 1], Z=xyz_hod[:, 2], weights=w_hod, weight_type='pair_product', binfile=bins)['xi']
                 
     # compute mean and error
     #Rat_hodtrue_mean = np.mean(Rat_hodtrue,axis=1)
@@ -367,6 +377,52 @@ def get_jack_corr(xyz_true, w_true, xyz_hod, w_hod, Lbox, N_dim=3, nthreads=16, 
     Corr_err_true = np.sqrt(N_dim**3-1)*np.std(Corr_true,axis=1)
 
     return Rat_hodtrue_mean, Rat_hodtrue_err, Corr_mean_hod, Corr_err_hod,  Corr_mean_true, Corr_err_true, bin_centers
+
+def get_jack_cross_corr(xyz_true, xyz_hod, Lbox, N_dim=3, nthreads=16, bins=np.logspace(-1, 1, 21)):
+    # create randoms
+    N_rand = 15*xyz_true.shape[0]
+    xyz_rand = np.random.rand(N_rand, 3)*Lbox
+
+    # cross correlation
+    xi_cross = get_xi_cross(xyz_true, xyz_hod, xyz_rand, xyz_rand, Lbox, bins)
+    
+    # bins for the correlation function
+    N_bin = len(bins)
+    bin_centers = (bins[:-1] + bins[1:])/2.
+
+    # empty arrays to record data
+    Corr_cross = np.zeros((N_bin-1, N_dim**3))
+    for i_x in range(N_dim):
+        for i_y in range(N_dim):
+            for i_z in range(N_dim):
+                print(i_x, i_y, i_z)
+                xyz_hod_jack = xyz_hod.copy()
+                xyz_true_jack = xyz_true.copy()
+                xyz_rand_jack = xyz_rand.copy()
+            
+                xyz = np.array([i_x,i_y,i_z],dtype=int)
+                size = Lbox/N_dim
+
+                bool_arr = np.prod((xyz == (xyz_hod/size).astype(int)),axis=1).astype(bool)
+                xyz_hod_jack[bool_arr] = np.array([0.,0.,0.])
+                xyz_hod_jack = xyz_hod_jack[np.sum(xyz_hod_jack,axis=1)!=0.]
+
+                bool_arr = np.prod((xyz == (xyz_true/size).astype(int)),axis=1).astype(bool)
+                xyz_true_jack[bool_arr] = np.array([0.,0.,0.])
+                xyz_true_jack = xyz_true_jack[np.sum(xyz_true_jack,axis=1)!=0.]
+
+                bool_arr = np.prod((xyz == (xyz_rand/size).astype(int)),axis=1).astype(bool)
+                xyz_rand_jack[bool_arr] = np.array([0.,0.,0.])
+                xyz_rand_jack = xyz_rand_jack[np.sum(xyz_rand_jack,axis=1)!=0.]
+
+                xi_cross_jack = get_xi_cross(xyz_true_jack, xyz_hod_jack, xyz_rand_jack, xyz_rand_jack, Lbox, bins)
+                Corr_cross[:, i_x+N_dim*i_y+N_dim**2*i_z] = xi_cross_jack
+                
+    # compute mean and error
+    Corr_mean_cross = xi_cross
+    Corr_err_cross = np.sqrt(N_dim**3 - 1)*np.std(Corr_cross, axis=1)
+
+    return Corr_mean_cross, Corr_err_cross, bin_centers
 
 
 def get_jack_pair(xyz_true, v_true, xyz_hod, v_hod, Lbox, N_dim=3, nthreads=16, bins=np.linspace(0., 100., 51)):
@@ -445,3 +501,50 @@ def get_jack_pair(xyz_true, v_true, xyz_hod, v_hod, Lbox, N_dim=3, nthreads=16, 
 
     return Rat_hodtrue_mean, Rat_hodtrue_err, Pair_mean_hod, Pair_err_hod,  Pair_mean_true, Pair_err_true, bin_centers
 
+
+def get_xi_cross(D1, D2, R1, R2, Lbox, bins):
+    N_D1 = D1.shape[0]
+    N_D2 = D2.shape[0]
+    N_R1 = R1.shape[0]
+    N_R2 = R2.shape[0]
+    D1 = D1.astype(np.float32)
+    D2 = D2.astype(np.float32)
+    R1 = R1.astype(np.float32)
+    R2 = R2.astype(np.float32)
+    
+    autocorr = 0
+    results = DD(autocorr, nthreads=16, binfile=bins,
+                 X1=D1[:, 0], Y1=D1[:, 1], Z1=D1[:, 2],
+                 X2=D2[:, 0], Y2=D2[:, 1], Z2=D2[:, 2],
+                 boxsize=Lbox, periodic=True)
+    D1D2 = results['npairs'].astype(float)
+    D1D2 /= (N_D1*N_D2)
+
+    autocorr = 0
+    results = DD(autocorr, nthreads=16, binfile=bins,
+                 X1=R1[:, 0], Y1=R1[:, 1], Z1=R1[:, 2],
+                 X2=D2[:, 0], Y2=D2[:, 1], Z2=D2[:, 2],
+                 boxsize=Lbox, periodic=True)
+    R1D2 = results['npairs'].astype(float)
+    R1D2 /= (N_R1*N_D2)
+
+    autocorr = 0
+    results = DD(autocorr, nthreads=16, binfile=bins,
+                 X1=D1[:, 0], Y1=D1[:, 1], Z1=D1[:, 2],
+                 X2=R2[:, 0], Y2=R2[:, 1], Z2=R2[:, 2],
+                 boxsize=Lbox, periodic=True)
+    D1R2 = results['npairs'].astype(float)
+    D1R2 /= (N_D1*N_R2)
+
+    """
+    autocorr = 0
+    results = DD(autocorr, nthreads=16, binfile=bins,
+                 X1=R1[:, 0], Y1=R1[:, 1], Z1=R1[:, 2],
+                 X2=R2[:, 0], Y2=R2[:, 1], Z2=R2[:, 2],
+                 boxsize=Lbox, periodic=True)
+    R1R2 = results['npairs'].astype(float)
+    """
+    R1R2 = get_RR(N_R1, N_R2, Lbox, bins)
+    R1R2 /= (N_R1*N_R2)
+
+    return (D1D2 - R1D2 - D1R2 + R1R2)/R1R2

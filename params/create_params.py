@@ -13,12 +13,13 @@ plotparams.buba()
 
 sim_type = "MTNG";
 #sim_type = "TNG";
-tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/dm_arepo/"}
+tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/dm_arepo/"} #!!!!!!!!!!!!!!!!!
+#tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/"}
 tng_dir = tng_dir_dic[sim_type]
 
-z_ints = [0., 0.5, 1.0, 1.5]
-z_ints = [0., 0.5, 1.5]
-z_ints = [0.0, 1.0]
+#z_ints = [0., 0.5, 1.0, 1.5]
+#z_ints = [0., 0.5, 1.0, 0.25]
+z_ints = [0.5]
 
 zs = [0., 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0]
 snaps = [264, 237, 214, 179, 151, 129, 94, 80, 69, 51]
@@ -135,6 +136,8 @@ for z_int in z_ints:
         np.save(tng_dir+f'data_{fp_dm:s}/GroupPotential_{fp_dm:s}_{snapshot:d}.npy', GroupPotential)
         np.save(tng_dir+f'data_{fp_dm:s}/GroupVirial_{fp_dm:s}_{snapshot:d}.npy', GroupVirial)
         np.save(tng_dir+f'data_{fp_dm:s}/GroupVelDisp_{fp_dm:s}_{snapshot:d}.npy', GroupVelDisp)
+        np.save(tng_dir+f'data_{fp_dm:s}/GroupVmax_{fp_dm:s}_{snapshot:d}.npy', Group_Vmax)
+        np.save(tng_dir+f'data_{fp_dm:s}/GroupVmaxRad_{fp_dm:s}_{snapshot:d}.npy', GroupVmaxRad)
         np.save(tng_dir+f'data_{fp_dm:s}/GroupHalfmassRad_{fp_dm:s}_{snapshot:d}.npy', GroupHalfmassRad)
         np.save(tng_dir+f'data_{fp_dm:s}/GroupVelDispSqR_{fp_dm:s}_{snapshot:d}.npy', GroupVelDisp**2*GroupHalfmassRad)
         np.save(tng_dir+f'data_{fp_dm:s}/GroupConc_{fp_dm:s}_{snapshot:d}.npy', GroupConc)

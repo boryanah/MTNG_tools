@@ -15,13 +15,17 @@ plotparams.buba()
 hexcolors_bright = ['#CC3311','#0077BB','#EE7733','#BBBBBB','#33BBEE','#EE3377','#0099BB']
 
 # simulation parameters
-tng_dir = "/mnt/alan1/boryanah/MTNG/"
+#tng_dir = "/mnt/alan1/boryanah/MTNG/"
+tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo/";fp_dm = 'dm'
 gal_types = ['LRG', 'ELG'] # don't forget that if you change ELG selection, LRG changes too
-n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
-#snapshots = [179, 264]
-snapshots = [179]
-#zs = [1., 0.]
-zs = [1.]
+#gal_types = ['ELG']
+#n_gal = '2.0e-03'
+n_gal = '7.0e-04'
+#n_gal = ['7.0e-04', '2.0e-03']
+snapshots = [179, 264]
+#snapshots = [264]
+zs = [1., 0.]
+#zs = [0.]
 
 # definitions for the axes
 left, width = 0.14, 0.85#0.1, 0.65
@@ -41,13 +45,14 @@ counter = 0
 for i, snapshot in enumerate(snapshots):
     z = zs[i]
     z_label = f"z = {z:.1f}"
+    print(z)
     
     # load other halo properties
-    GroupPos_fp = np.load(tng_dir+f'data_fp/GroupPos_fp_{snapshot:d}.npy')
-    GrMcrit_fp = np.load(tng_dir+f'data_fp/Group_M_TopHat200_fp_{snapshot:d}.npy')*1.e10
-    SubhaloSFR = np.load(tng_dir+f"data_fp/SubhaloSFR_fp_{snapshot:d}.npy")
-    SubhaloMstar = np.load(tng_dir+f"data_fp/SubhaloMassType_fp_{snapshot:d}.npy")[:, 4]*1.e10
-    SubhaloGrNr = np.load(tng_dir+f"data_fp/SubhaloGroupNr_fp_{snapshot:d}.npy")
+    GroupPos_fp = np.load(tng_dir+f'data_{fp_dm}/GroupPos_{fp_dm}_{snapshot:d}.npy')
+    GrMcrit_fp = np.load(tng_dir+f'data_{fp_dm}/Group_M_TopHat200_{fp_dm}_{snapshot:d}.npy')*1.e10
+    #SubhaloSFR = np.load(tng_dir+f"data_{fp_dm}/SubhaloSFR_{fp_dm}_{snapshot:d}.npy")
+    #SubhaloMstar = np.load(tng_dir+f"data_{fp_dm}/SubhaloMassType_{fp_dm}_{snapshot:d}.npy")[:, 4]*1.e10
+    SubhaloGrNr = np.load(tng_dir+f"data_{fp_dm}/SubhaloGroupNr_{fp_dm}_{snapshot:d}.npy")
 
     # max halo mass
     print("max halo mass = %.1e"%GrMcrit_fp.max())
@@ -57,9 +62,13 @@ for i, snapshot in enumerate(snapshots):
     
     for gal_type in gal_types:
         gal_label = "{\\rm "+f"{gal_type}s"+"}"
-    
+        print(gal_type)
+        
         # indices of the galaxies
-        index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal}_{snapshot:d}.npy")
+        if "arepo" in tng_dir:
+            index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal}_{snapshot:d}_dm_arepo.npy")
+        else:
+            index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal}_{snapshot:d}.npy")
 
         # which galaxies are centrals
         index_cent = np.intersect1d(index, sub_inds_cent)
@@ -76,10 +85,10 @@ for i, snapshot in enumerate(snapshots):
         count_cent_halo = np.zeros(len(GrMcrit_fp), dtype=int)
         count_cent_halo[grnr_cent_gal_uni] = cts
 
-        want_save = True
+        want_save = False
         if want_save:
-            np.save(tng_dir+f"data_fp/GroupCount{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npy", count_halo)
-            np.save(tng_dir+f"data_fp/GroupCentsCount{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npy", count_cent_halo)
+            np.save(tng_dir+f"data_{fp_dm}/GroupCount{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npy", count_halo)
+            np.save(tng_dir+f"data_{fp_dm}/GroupCentsCount{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npy", count_cent_halo)
 
         # define mass bins
         mbins = np.logspace(11, 15, 41)
@@ -88,6 +97,9 @@ for i, snapshot in enumerate(snapshots):
         # satellite counts
         count_sats_halo = count_halo - count_cent_halo
 
+        print("satellite fraction", np.sum(count_sats_halo)/np.sum(count_halo))
+        if True: continue # TESTING!!!!!!!!!!!!!
+        
         # probability
         want_probs = False
         if want_probs:
@@ -115,7 +127,7 @@ for i, snapshot in enumerate(snapshots):
             prob_anysat_nocent = hist_anysat_nocent/hist_norm
             prob_nosat_nocent = hist_nosat_nocent/hist_norm
 
-            np.savez(f"data/{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npz", mbinc=mbinc, prob_acent=prob_acent, prob_anysat=prob_anysat, prob_acent_given_anysat=prob_anysat_acent/prob_anysat, prob_anysat_given_acent=prob_anysat_acent/prob_acent)
+            np.savez(f"data/{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npz", mbinc=mbinc, prob_acent=prob_acent, prob_anysat=prob_anysat, prob_acent_given_anysat=prob_anysat_acent/prob_anysat, prob_anysat_given_acent=prob_anysat_acent/prob_acent)
 
             quit()
             plt.figure(1, figsize=(9, 7))
@@ -190,6 +202,7 @@ for i, snapshot in enumerate(snapshots):
         ax_histx.plot(mbinc, std/poisson, color=hexcolors_bright[counter], ls='-', lw=2.5)
         
         counter += 1
+exit() # TESTING!!!!!!!!!!!!!!
 ax_scatter.set_xscale('log')
 ax_scatter.set_yscale('log')
 ax_scatter.legend()

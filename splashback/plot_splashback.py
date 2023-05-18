@@ -13,18 +13,21 @@ sim_type = 'MTNG'; fp_dm = 'dm'
 #sim_type = 'TNG'; fp_dm = 'fp'
 tng_dir_dic = {'TNG': "/mnt/gosling1/boryanah/TNG300/", 'MTNG': "/mnt/alan1/boryanah/MTNG/"}
 Lbox_dic = {'TNG': 205., 'MTNG': 500.}
+tng_dir_dic['MTNG'] = "/mnt/alan1/boryanah/MTNG/dm_arepo/"
 
 # simulation params
 tng_dir = tng_dir_dic[sim_type]
 Lbox = Lbox_dic[sim_type]
 
-#snapshot0 = 55; z0 = 0.82
-if sim_type == 'MTNG' and fp_dm == 'dm':
-    snapshot0 = 184; z0 = 1.
-    #snapshot0 = 269; z0 = 0.
-else:
-    snapshot0 = 179; z0 = 1.
-    #snapshot0 = 264; z0 = 0.
+snapshot0 = 179; z0 = 1.0;
+#snapshot0 = 264; z0 = 0.0;
+
+if (fp_dm == 'fp' or "arepo" in tng_dir) and sim_type == 'MTNG':
+    snapshot0 += 0    
+elif fp_dm == 'dm' and sim_type == 'MTNG':
+    snapshot0 += 5
+if sim_type == 'TNG':
+    snapshot0 = 55; z0 = 0.82; snapshot1 = 41; z1 = 1.41
     
 if sim_type == 'MTNG':
     Group_M_Mean200 = np.load(tng_dir+f'data_{fp_dm:s}/Group_M_Mean200_{fp_dm:s}_{snapshot0:d}.npy')*1.e10

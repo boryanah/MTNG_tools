@@ -26,6 +26,8 @@ greysafecols = ['#809BC8', '#FF6666', '#FFCC66', '#64C204']
 
 # simulation parameters
 tng_dir = "/mnt/alan1/boryanah/MTNG/"
+#tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo/"
+fp_dm = 'fp' # 'fp', 'dm', 'dm_arepo'
 gal_type = sys.argv[1] # 'LRG' # 'ELG'
 fit_type = sys.argv[2] # 'ramp' # 'plane'
 fun_cent = 'linear' # 'tanh' # 'erf' # 'gd' # 'abs' # 'arctan'
@@ -33,13 +35,15 @@ fun_sats = 'linear'
 method = 'powell' # 'Nelder-Mead'
 mode = 'all'#'all', 'bins'
 sat_type = 'subhalos' #'subsamp' #'subhalos' #'subsamp' #'subhalos' # 'subsamp' 
-fp_dm = 'fp'
 p0 = np.array([0., 0.]) 
 Lbox = 500.
 if gal_type == 'ELG':
+    want_drad = False #True TESTING og is 1
+    want_cond = False #True
+    want_pseudo = False #True
     want_drad = True
     want_cond = True
-    want_pseudo = True
+    want_pseudo = True 
 else:
     want_drad = False
     want_cond = False
@@ -61,7 +65,7 @@ if len(sys.argv) > 4:
     snapshot = int(sys.argv[4])
     if fp_dm == 'dm':
         offset = 5
-    elif fp_dm == 'fp':
+    else:
         offset = 0
     snapshot_dm = snapshot + offset
     redshift = z_dict[snapshot]
@@ -69,11 +73,15 @@ else:
     snapshot = 179;
     if fp_dm == 'dm':
         offset = 5
-    elif fp_dm == 'fp':
+    else:
         offset = 0
     snapshot_dm = snapshot + offset
     redshift = 1.
 print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{fixocc_str}_{cond_str}_{fp_dm}_{snapshot:d}_{n_gal}")
+
+# funny regimes
+plot_angle = False #True; # must be fp
+want_subs = False # must be fp (same angle regime)
 
 def angle(a, b, c):
     res = (c**2 - b**2 - a**2)/(-2.0 * a * b)
@@ -193,7 +201,7 @@ def prob_linear_sats(a, b):
 #new_params = ['GroupVelAni', 'SubhaloMass_peak']
 new_params = []
 #params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupEnv_R1.5', 'GroupShear_R1.5', 'GroupConcRad', 'GroupVirial', 'GroupSnap_peak', 'GroupVelDisp', 'GroupPotential', 'Group_M_Splash', 'Group_R_Splash', 'GroupNsubs', 'GroupSnap_peak', 'GroupMarkedEnv_R2.0_s0.25_p2', 'GroupHalfmassRad']
-#params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
+params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
 #params = ['GroupEnv_R1.5']
 params = []
 n_combos = len(params)*(len(params)-1)//2
@@ -273,8 +281,17 @@ GrRcrit = np.load(tng_dir+f'data_{fp_dm}/Group_R_TopHat200_{fp_dm}_{snapshot:d}.
 #GrRcrit = np.ones_like(GrMcrit) # (TESTING)
 index_halo = np.arange(len(GrMcrit), dtype=int)
 
-# load galaxy sample info
-index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}.npy")
+# load galaxy sample info # tuks
+if 'dm_arepo' in tng_dir:
+    index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}_dm_arepo.npy")
+else:
+    index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}.npy")
+if want_subs and plot_angle:
+    SubhaloMass = np.load(tng_dir+f'data_{fp_dm}/SubhaloMassType_{fp_dm}_{snapshot:d}.npy')[:, 1]*1.e10
+    mthresh = 5.e8
+    index = np.arange(len(SubhaloGrNr))[SubhaloMass > mthresh]
+    print("number of subs gals = ", len(index))
+    
 if want_splash:
     print("make pretty")
     gal_par = np.abs(np.load(f'/home/boryanah/MTNG/splashback/data/galaxy_parent_rsplash_{fp_dm}_{snapshot:d}.npy'))
@@ -310,15 +327,16 @@ else:
     index_sats = index[~np.in1d(index, index_cent)]
     parent_sats = SubhaloGrNr[index_sats]
 
-    # group info (from get_hod.py)
+    # group info (from get_hod.py) # tuks?
     GroupCount = np.load(tng_dir+f"data_{fp_dm}/GroupCount{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npy")
     GroupCountCent = np.load(tng_dir+f"data_{fp_dm}/GroupCentsCount{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npy")
     GroupCountSats = GroupCount-GroupCountCent
 
 print(f"minimum halo mass with any counts = {np.min(GrMcrit[GroupCount > 0]):.2e}")
+print("number cent sats", len(index_cent), len(index_sats))
 
 if sat_type == 'subsamp':
-    # load particle subsamples for some halos
+    # load particle subsamples for some halos # tuks pls not
     
     GroupSubsampIndex = np.load(f"../hod_subsamples/data/subsample_halo_index_{fp_dm}_{snapshot:d}.npy")
     GroupSubsampFirst = np.zeros(len(GroupCount), dtype=int)
@@ -360,7 +378,6 @@ print("min and max count = ", ct_sats.min(), ct_sats.max())
 # assert that indices of galaxies are ordered by
 assert np.sum(np.abs(np.sort(parent_sats)-parent_sats)) == 0
 
-plot_angle = False
 if plot_angle:
     par_sats = parent_sats[ind_sats]
     grp_sats = GroupPos[par_sats]
@@ -393,32 +410,27 @@ if plot_angle:
     ang = angle(r_st, r_s1, r_ss) # radians
     #sbdrnm_sats[:] = ang
 
-    """
-    ang *= 180./np.pi # degrees
-    r_ss = r_ss[ang < 30]
-    bins = np.linspace(r_ss.min(), r_ss.max(), 101)
-    binc = (bins[1:]+bins[:-1])*.5
-    hist, _ = np.histogram(r_ss, bins=bins)
-    plt.plot(binc, hist, label='angle wrt 1st sat')
-    plt.legend()
-    plt.show()
-    plt.show()
-    quit()
-    """
-    
+    # angle
     ch = r_ss > 0.
-    ang = ang[ch]*180./np.pi
-    bins = np.linspace(ang.min(), ang.max(), 101)
+    ang = ang[ch]*180./np.pi    
+    #bins = np.linspace(ang.min(), ang.max(), 101) # angle
+    bins = np.linspace(-1.0, 1.0, 101) # cosine
+    #bins = np.linspace(np.cos(ang.min()*np.pi/180.), np.cos(ang.max()*np.pi/180.), 101) # cosine
     binc = (bins[1:]+bins[:-1])*.5
-    hist, _ = np.histogram(ang, bins=bins)
+    # hist, _ = np.histogram(ang, bins=bins) # angle
+    hist, _ = np.histogram(np.cos(ang*np.pi/180.), bins=bins) # cosine
     ang = np.arccos(2.*np.random.rand(np.sum(ch))-1.)*180./np.pi
-    hist_rand, _ = np.histogram(ang, bins=bins)
-    np.savez(f"data/{gal_type}_angle.npz", hist_ang=hist, hist_rand=hist_rand, binc=binc)
+    #hist_rand, _ = np.histogram(ang, bins=bins) # angle
+    hist_rand, _ = np.histogram(np.cos(ang*np.pi/180.), bins=bins) # cosine
+    if want_subs:
+        np.savez(f"data/subs_angle.npz", hist_ang=hist, hist_rand=hist_rand, binc=binc)
+    else:
+        np.savez(f"data/{gal_type}_angle.npz", hist_ang=hist, hist_rand=hist_rand, binc=binc)
     plt.plot(binc, hist, label='angle wrt 1st sat')
     plt.plot(binc, hist_rand, label='random draw')
     plt.legend()
     plt.title(f"{gal_type}")
-    plt.xlim([0., 180.])
+    #plt.xlim([0., 180.])
     plt.savefig(f"{gal_type}_angle.png")
     plt.show()
     quit()
@@ -685,7 +697,7 @@ for i_pair in range(len(secondaries)):
             #P(1 cent|0 sat) = P(A|~B) = [P(A)/P(B)-P(A|B)]*[P(B)/(1-P(B))] # exact
 
             # load k factor and interpolate over mass for each halo
-            data = np.load(f"../hod/data/{gal_type:s}_{n_gal:s}_fp_{snapshot:d}.npz")
+            data = np.load(f"../hod/data/{gal_type:s}_{n_gal:s}_{fp_dm}_{snapshot:d}.npz")
             prob_acent = data['prob_acent']; prob_acent = np.nan_to_num(prob_acent)
             prob_anysat = data['prob_anysat']; prob_anysat = np.nan_to_num(prob_anysat)
             prob_acent_given_anysat = data['prob_acent_given_anysat']
@@ -968,15 +980,21 @@ for i_pair in range(len(secondaries)):
                                         X = 0.45
                                     elif snapshot == 264:
                                         X = 0.55
-                                    congenital = np.random.rand() > X #0.6 # 264: 0.6/0.7 179: 0.5/0.6
+                                    if n_gal == "7.0e-04":
+                                        G = 0.075
+                                        E = 0.075
+                                    else:
+                                        G = 0.1
+                                        E = 0.1
+                                    congenital = np.random.rand() > X
                                     if congenital:
                                         theta = np.arccos(2.*np.random.rand()-1.)
                                         phi = np.random.rand()*2.*np.pi
                                         x = np.cos(phi)*np.sin(theta)
                                         y = np.sin(phi)*np.sin(theta)
                                         z = np.cos(theta)
-                                        # gaussian draw
-                                        dradii[m] = np.max([0., (0.1 * np.random.randn() + 0.1)])
+                                        # gaussian draw around 100 kpc/h
+                                        dradii[m] = np.max([0., (G * np.random.randn() + E)])
                                         p = dradii[m]*np.array([x, y, z])
                                         p = pos_pred_sats[sum_sats-1] - pos[rchoice][n] + p
                                     else:

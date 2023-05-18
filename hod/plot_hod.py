@@ -21,8 +21,8 @@ n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
 #n_gal = '7.0e-04' #['7.0e-04', '2.0e-03']
 
 p1, p2 = n_gal.split('e-0')
-snapshots = [179, 264]
-zs = [1., 0.]
+snapshots = [179]#, 264]
+zs = [1.]#, 0.]
 
 # definitions for the axes
 left, width = 0.14, 0.85#0.1, 0.65
@@ -66,8 +66,8 @@ for i, snapshot in enumerate(snapshots):
         #plt.errorbar(mbinc, hod_sat_gal, yerr=std, capsize=4, color=hexcolors_bright[counter], ls='-')
         #plt.fill_between(mbinc, poiss_up, poiss_dw, color='black', alpha=0.3)
 
-        ax_scatter.plot(mbinc, hod_cent_gal, color=hexcolors_bright[counter], ls='-', lw=3.5, label=rf"${z_label}, \ {gal_label}$")
-        ax_scatter.plot(mbinc, hod_sat_gal, color=hexcolors_bright[counter], ls='-', lw=2.5)
+        ax_scatter.plot(mbinc, hod_cent_gal, color=hexcolors_bright[counter], ls='--', label=rf"${z_label}, \ {gal_label}$")
+        ax_scatter.plot(mbinc, hod_sat_gal, color=hexcolors_bright[counter], ls='-')
 
         #ax_histx.plot(mbinc, std, color=hexcolors_bright[counter], ls='-', lw=2.5) # og
         #ax_histx.plot(mbinc, poisson, color=hexcolors_bright[counter], ls='--', lw=2.5) # og

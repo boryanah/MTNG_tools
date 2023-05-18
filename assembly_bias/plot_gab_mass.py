@@ -21,13 +21,14 @@ hexcolors_bright = ['#CC3311','#0077BB','#EE7733','limegreen','#BBBBBB','#33BBEE
 greysafecols = ['#809BC8', 'black', '#FF6666', '#FFCC66', '#64C204']
 # 0077BB is dark blue; EE7733 is orange; EE3377 is cyclamen; 33BBEE is blue; CC3311 is brick; 0099BB is dark green-blue; BBBBBB is silver
 
-# simulation parameters
-tng_dir = "/mnt/alan1/boryanah/MTNG/"
+# simulation parametersx
+tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo"
 gal_types = ['LRG', 'ELG']
 n_gal = '2.0e-03' #['7.0e-04', '2.0e-03']
 #n_gal = '7.0e-04'
 p1, p2 = n_gal.split('e-0')
-fp_dm = 'fp'
+#fp_dm = 'fp'
+fp_dm = 'dm'
 snapshots = [179, 264]
 zs = [1., 0.]
 
@@ -42,7 +43,7 @@ counter = 0
 for j, snapshot in enumerate(snapshots):
     z = zs[j]
     z_label = f"z = {z:.1f}"
-    if fp_dm == 'dm':
+    if fp_dm == 'dm' and "arepo" not in tng_dir:
         snapshot_dm = snapshot+5
     else:
         snapshot_dm = snapshot
@@ -52,7 +53,8 @@ for j, snapshot in enumerate(snapshots):
 
         # load correlation function
         if gal_type == 'ELG':
-            drad_str = "_drad"
+            #drad_str = "_drad" # og
+            drad_str = "" # TESTING
             offset = ncol
         else:
             drad_str = ""
@@ -71,7 +73,8 @@ for j, snapshot in enumerate(snapshots):
             plt.subplot(nrow, ncol, i+offset+1)
 
             if gal_type == 'ELG':
-                drad_str = "_drad"
+                #drad_str = "_drad" # og
+                drad_str = ""
             else:
                 drad_str = ""
 
@@ -103,11 +106,14 @@ for j, snapshot in enumerate(snapshots):
             plt.errorbar(rbinc, rat_mean, capsize=4, color=hexcolors_bright[counter], ls='--')
             #plt.fill_between(rbinc, rat_mean+rat_err, rat_mean-rat_err, color=hexcolors_bright[counter], alpha=0.5)
 
+            
             if counter == 0:
-                plt.text(x=0.5, y=0.1, s=r"$\log (M) = %.1f$"%logm, transform=plt.gca().transAxes)
+                #plt.text(x=0.5, y=0.1, s=r"$\log (M) = %.1f$"%logm, transform=plt.gca().transAxes)
+                plt.text(x=0.05, y=0.85, s=r"$\log (M) = %.1f$"%logm, transform=plt.gca().transAxes)
 
             plt.xscale('log')
             plt.ylim([0.5, 1.5])
+            plt.xlim([1., 30])
 
         counter += 1
 

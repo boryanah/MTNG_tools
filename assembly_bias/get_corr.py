@@ -26,7 +26,9 @@ hexcolors_bright = ['#0077BB','#33BBEE','#0099BB','#EE7733','#CC3311','#EE3377',
 greysafecols = ['#809BC8', '#FF6666', '#FFCC66', '#64C204']
 
 # simulation parameters
-tng_dir = "/mnt/alan1/boryanah/MTNG/"
+tng_dir = "/mnt/alan1/boryanah/MTNG/dm_arepo/" # TESTING
+tng_dir = "/mnt/alan1/boryanah/MTNG/" # TESTING
+tng_dir_fp = "/mnt/alan1/boryanah/MTNG/" # TESTING
 Lbox = 500. # Mpc/h
 gal_type = sys.argv[1] # 'LRG' # 'RLG'
 fit_type = sys.argv[2] # 'ramp' # 'plane'
@@ -35,9 +37,14 @@ fun_types = ['linear']
 fun_type_sats = 'linear'
 fp_dm = 'fp'
 #fp_dm = 'dm'
+if "arepo" in tng_dir:
+    tng_dir_fp = tng_dir
 mode = 'all' #'all' # fitting once for all # 'bins' fitting in bins
 if gal_type == 'ELG':
-    want_drad = True
+    want_drad = False #True TESTING og is 1
+    want_cond = False #True
+    want_pseudo = False #True
+    want_drad = True # TESTING og is 1
     want_cond = True
     want_pseudo = True
 else:
@@ -59,17 +66,17 @@ else:
     n_gal = '2.0e-03' # '7.0e-04'
 if len(sys.argv) > 4:
     snapshot_fp = int(sys.argv[4])
-    if fp_dm == 'dm':
+    if fp_dm == 'dm' and "arepo" not in tng_dir:
         offset = 5
-    elif fp_dm == 'fp':
+    else:
         offset = 0
     snapshot = snapshot_fp + offset
     redshift = z_dict[snapshot]
 else:
     snapshot_fp = 179;
-    if fp_dm == 'dm':
+    if fp_dm == 'dm' and "arepo" not in tng_dir:
         offset = 5
-    elif fp_dm == 'fp':
+    else:
         offset = 0
     snapshot = snapshot_fp + offset
     redshift = 1.
@@ -80,8 +87,7 @@ print(f"{gal_type}_{fit_type}_{vrad_str}_{splash_str}_{pseudo_str}_{drad_str}_{f
 #new_params = ['GroupVelAni', 'SubhaloMass_peak']
 new_params = []
 #params = ['GroupConc', 'Group_M_Crit200_peak', 'GroupGamma', 'GroupVelDispSqR', 'GroupShearAdapt', 'GroupEnvAdapt', 'GroupEnv_R1.5', 'GroupShear_R1.5', 'GroupConcRad', 'GroupVirial', 'GroupSnap_peak', 'GroupVelDisp', 'GroupPotential', 'Group_M_Splash', 'Group_R_Splash', 'GroupNsubs', 'GroupSnap_peak', 'GroupMarkedEnv_R2.0_s0.25_p2', 'GroupHalfmassRad']
-params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
-#params = ['GroupEnv_R1.5']
+#params = ['GroupConc', 'SubhaloMass_peak', 'GroupShearAdapt', 'GroupEnvAdapt', 'Group_R_Splash', 'GroupVelAni']
 params = []
 n_combos = len(params)*(len(params)-1)//2
 if 'ramp' == fit_type:
@@ -130,13 +136,16 @@ SubhaloPos = np.load(tng_dir+f'data_{fp_dm}/SubhaloPos_{fp_dm}_{snapshot:d}.npy'
 SubhaloGrNr = np.load(tng_dir+f'data_{fp_dm}/SubhaloGroupNr_{fp_dm}_{snapshot:d}.npy')
 GroupPos = np.load(tng_dir+f'data_{fp_dm}/GroupPos_{fp_dm}_{snapshot:d}.npy')
 GrMcrit = np.load(tng_dir+f'data_{fp_dm}/Group_M_TopHat200_{fp_dm}_{snapshot:d}.npy')*1.e10
-SubhaloPos_fp = np.load(tng_dir+f'data_fp/SubhaloPos_fp_{snapshot_fp:d}.npy')
-SubhaloGrNr_fp = np.load(tng_dir+f'data_fp/SubhaloGroupNr_fp_{snapshot_fp:d}.npy')
-GroupPos_fp = np.load(tng_dir+f'data_fp/GroupPos_fp_{snapshot_fp:d}.npy')
-GrMcrit_fp = np.load(tng_dir+f'data_fp/Group_M_TopHat200_fp_{snapshot_fp:d}.npy')*1.e10
+SubhaloPos_fp = np.load(tng_dir_fp+f'data_{fp_dm}/SubhaloPos_{fp_dm}_{snapshot_fp:d}.npy')
+SubhaloGrNr_fp = np.load(tng_dir_fp+f'data_{fp_dm}/SubhaloGroupNr_{fp_dm}_{snapshot_fp:d}.npy')
+GroupPos_fp = np.load(tng_dir_fp+f'data_{fp_dm}/GroupPos_{fp_dm}_{snapshot_fp:d}.npy')
+GrMcrit_fp = np.load(tng_dir_fp+f'data_{fp_dm}/Group_M_TopHat200_{fp_dm}_{snapshot_fp:d}.npy')*1.e10
 
 # indices of the galaxies
-index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot_fp:d}.npy")
+if 'dm_arepo' in tng_dir:
+    index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}_dm_arepo.npy")
+else:
+    index = np.load(f"/home/boryanah/MTNG/selection/data/index_{gal_type:s}_{n_gal:s}_{snapshot:d}.npy")
 
 # identify central subhalos
 _, sub_inds_cent = np.unique(SubhaloGrNr_fp, return_index=True)
